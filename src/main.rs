@@ -25,18 +25,24 @@ fn save_words(d: Vec<String>, u: String) -> Result<String, String>
 
     // Serialize Data To JSON
     let struct_in = JsonDocument { url: u, words: d };
-    let content_json = serde_json::to_string(&struct_in).expect("Program coudn't convert words to JSON format"); // TODO: Better error handling without .expect
+    let content_json_check = serde_json::to_string(&struct_in); // TODO: Better error handling without .expect
     
-    // Save File
-    let path_to: PathBuf = Path::new(".").join(FOLDER_FILES_WITH_WORDS).join(format!("{}.json", time_now));
-    match fs::write(path_to, content_json)
+    match content_json_check
     {
-        Ok(_) => {
-            Ok("saved".to_string())
+        Ok(converted_val) => {
+            // Save File
+            let path_to: PathBuf = Path::new(".").join(FOLDER_FILES_WITH_WORDS).join(format!("{}.json", time_now));
+            match fs::write(path_to, converted_val)
+            {
+                Ok(_) => {
+                    Ok("saved".to_string())
+                },
+                Err(err) => {
+                    Err(err.to_string())
+                }
+            }
         },
-        Err(err) => {
-            Err(err.to_string())
-        }
+        Err(e) => Err(e.to_string())
     }
 }
 
@@ -96,7 +102,8 @@ async fn main() {
                             let val = s_w.to_string();
                             let regex_check_capital_let = Regex::new("[A-Z]").unwrap();
                             let regex_check_space = Regex::new(r"\s").unwrap();
-                            if regex_check_capital_let.is_match(&val) && !regex_check_space.is_match(&val.trim()) // TODO: Check if all word isn't build with uppercase characters
+                            if regex_check_capital_let.is_match(&val) && !regex_check_space.is_match(&val.trim()) 
+                            // when word has got capital letters in his body
                             {
                                 // Add uppercase characters to vector
                                 let mut losed_uppercase_characters = Vec::<&str>::new();
@@ -106,33 +113,41 @@ async fn main() {
                                     losed_uppercase_characters.push(c_nv);
                                 };
 
-                                // Replace Capital letters spaces for create Vector with many words from one word
-                                let replace_capital_letter_to_spaces = regex_check_capital_let.replace_all(&val, " ").to_string();
-                                let vec_without_capital_letters = replace_capital_letter_to_spaces.split(" ").collect::<Vec<&str>>();
-
-
-                                // Add losed uppercase character to word again
-                                let mut result = Vec::<String>::new(); // vector with added uppercase character to other word fragment
-                                for number in 1..vec_without_capital_letters.len()
+                                if losed_uppercase_characters.join("").len() != val.len() // when word is build only with capital letters // only slice word on capital letters creating more then one word from single word when all word isn't build with capital letters
                                 {
-                                    let word = vec_without_capital_letters[number].trim();
-                                    let uppercase = losed_uppercase_characters[number - 1];
+                                    // Replace Capital letters spaces for create Vector with many words from one word
+                                    let replace_capital_letter_to_spaces = regex_check_capital_let.replace_all(&val, " ").to_string();
+                                    let vec_without_capital_letters = replace_capital_letter_to_spaces.split(" ").collect::<Vec<&str>>();
 
-                                    let mut word_col = word.split("").collect::<Vec<&str>>();
-                                    word_col.insert(0, uppercase); // add uppercase letter to word
-                                    let word_str = word_col.join("");
+                                    // Add losed uppercase character to word again
+                                    let mut result = Vec::<String>::new(); // vector with added uppercase character to other word fragment
+                                    for number in 1..vec_without_capital_letters.len()
+                                    {
+                                        let word = vec_without_capital_letters[number].trim();
+                                        let uppercase = losed_uppercase_characters[number - 1];
 
-                                    result.push(word_str.trim().to_string());
+                                        let mut word_col = word.split("").collect::<Vec<&str>>();
+                                        word_col.insert(0, uppercase); // add uppercase letter to word
+                                        let word_str = word_col.join("");
+
+                                        result.push(word_str.trim().to_string());
+                                    };
+
+                                    // Cancel action
+                                    std::mem::drop(vec_without_capital_letters);
+                                    string_vec.append(&mut result); // add to other words vector our result vector with converted word
+                                }
+                                else
+                                {
+                                    // when word has got capital letter or letters but it is not build only with capital letters
+                                    string_vec.push(val);
                                 };
-
-                                // Cancel action
-                                std::mem::drop(vec_without_capital_letters);
-                                string_vec.append(&mut result); // add to other words vector our result vector with converted word
                             }
                             else
                             {
+                                // when word hasn't got any capital letters in his body
                                 string_vec.push(val);
-                            }
+                            };
                         };
 
                         println!("{}", string_vec.join(" "));
