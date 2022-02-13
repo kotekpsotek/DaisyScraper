@@ -14,3 +14,4 @@ serde_json = "1.0.78"
 scraper = "0.12.0"
 clap = { version = "3.0.14", features = ["derive"] }
 regex = "1.5.4"
+fltk = { version = "^1.2", features = ["fltk-bundled"] }

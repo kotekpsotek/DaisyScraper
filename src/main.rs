@@ -8,6 +8,7 @@ use serde_json;
 use chrono::{ offset::* };
 use std::{ fs, path::{ Path, PathBuf } };
 
+mod gui;
 
 #[derive(Serialize, Deserialize)]
 struct JsonDocument
@@ -55,11 +56,10 @@ async fn main() {
             Arg::new("url")
                 .short('u')
                 .long("url")
-                .required(true)
                 .takes_value(true)
                 .multiple_values(true)
                 .value_name("FIRST_PAGE_FROM_WHICH_YOU_WOULD_LIKE_GET_WORDS")
-                // .value_name("FROM_WHERE_YOU_WOULD_LIKE_GET_WORDS")
+                .value_name("FROM_WHERE_YOU_WOULD_LIKE_GET_WORDS")
                 .help("Add url from where you would like to scarp words")
         )
     .get_matches();
@@ -218,7 +218,9 @@ async fn main() {
         };
     }
     else
-    {
-        println!("You must give url or urls to where you would like to scrap words!!!")
+    { // Launch GUI
+        // GUI library: FLTK, GLK
+        println!("GUI application has been launched!!!");
+        gui::create(); // create GUI app
     };
 }
