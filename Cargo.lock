@@ -9,6 +9,9 @@ dependencies = [
  "chrono",
  "clap",
  "fltk",
+ "fltk-evented",
+ "fltk-flex",
+ "fltk-theme",
  "regex",
  "reqwest",
  "scraper",
@@ -135,6 +138,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8ad8cef104ac57b68b89df3208164d228503abbdce70f6880ffa3d970e7443a"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "cocoa-colors"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7fc3439406f349e0bc20d7de87314803378a535190d12e62991f7c8474d5296"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "color-maps"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "120b737cc99b0d73bf0a9bfa6086e84c0bde3b955851f37f812865bc08b35feb"
+dependencies = [
+ "lazy_static",
 ]
 
 [[package]]
@@ -272,12 +293,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "fltk-evented"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec67436b76d105d092cff77189ce581952575056d6d6838cff90c56eb6a4ddea"
+dependencies = [
+ "fltk",
+]
+
+[[package]]
+name = "fltk-flex"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58c935b6cbf53a3681beef6339ca0edbfdd091c0f00a275d886107ed1a66caca"
+dependencies = [
+ "fltk",
+]
+
+[[package]]
 name = "fltk-sys"
 version = "1.2.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc5f2bc77f2f08fb48bd8625fcb68ce446f36cfce204680416e30774606a4f86"
 dependencies = [
  "cmake",
+]
+
+[[package]]
+name = "fltk-theme"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abee3d9b0ed8bd45d10e4cc279d757ce71c37224482e8377a99906f7be771266"
+dependencies = [
+ "cocoa-colors",
+ "color-maps",
+ "fltk",
+ "lazy_static",
 ]
 
 [[package]]

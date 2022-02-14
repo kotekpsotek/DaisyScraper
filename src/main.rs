@@ -1,49 +1,46 @@
-use clap::{ self, App, Arg };
+use chrono::offset::*;
+use clap::{self, App, Arg};
+use regex::Regex;
 use reqwest;
-use tokio::{ self, task::JoinHandle };
-use scraper::{ Html, Selector };
-use regex::{ Regex };
-use serde::{ Serialize, Deserialize };
+use scraper::{Html, Selector};
+use serde::{Deserialize, Serialize};
 use serde_json;
-use chrono::{ offset::* };
-use std::{ fs, path::{ Path, PathBuf } };
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+use tokio::{self, task::JoinHandle};
 
 mod gui;
 
 #[derive(Serialize, Deserialize)]
-struct JsonDocument
-{
+struct JsonDocument {
     url: String,
-    words: Vec<String>
+    words: Vec<String>,
 }
 
 const FOLDER_FILES_WITH_WORDS: &str = "files";
 
-fn save_words(d: Vec<String>, u: String) -> Result<String, String>
-{
+fn save_words(d: Vec<String>, u: String) -> Result<String, String> {
     // create file title
     let time_now = Local::now().format("%Y %b %d %H-%M-%S%.3f %z").to_string();
 
     // Serialize Data To JSON
     let struct_in = JsonDocument { url: u, words: d };
     let content_json_check = serde_json::to_string(&struct_in); // TODO: Better error handling without .expect
-    
-    match content_json_check
-    {
+
+    match content_json_check {
         Ok(converted_val) => {
             // Save File
-            let path_to: PathBuf = Path::new(".").join(FOLDER_FILES_WITH_WORDS).join(format!("{}.json", time_now));
-            match fs::write(path_to, converted_val)
-            {
-                Ok(_) => {
-                    Ok("saved".to_string())
-                },
-                Err(err) => {
-                    Err(err.to_string())
-                }
+            let path_to: PathBuf = Path::new(".")
+                .join(FOLDER_FILES_WITH_WORDS)
+                .join(format!("{}.json", time_now));
+            match fs::write(path_to, converted_val) {
+                Ok(_) => Ok("saved".to_string()),
+                Err(err) => Err(err.to_string()),
             }
-        },
-        Err(e) => Err(e.to_string())
+        }
+        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -60,31 +57,29 @@ async fn main() {
                 .multiple_values(true)
                 .value_name("FIRST_PAGE_FROM_WHICH_YOU_WOULD_LIKE_GET_WORDS")
                 .value_name("FROM_WHERE_YOU_WOULD_LIKE_GET_WORDS")
-                .help("Add url from where you would like to scarp words")
+                .help("Add url from where you would like to scarp words"),
         )
-    .get_matches();
+        .get_matches();
 
-    if app.is_present("url")
-    {
+    if app.is_present("url") {
         let urls_from_arg = app.values_of("url").unwrap().collect::<Vec<&str>>(); // get all added url from command line interface (CLI)
         let mut joinhandle_process_vec = Vec::<JoinHandle<()>>::new();
 
         // Iterate over added urls and go to them
-        for url_from_arg in &urls_from_arg
-        {
+        for url_from_arg in &urls_from_arg {
             // Replace all found "\\" characters in url to "\"
-            let url_from_arg = Regex::new(r"\\").unwrap().replace_all(url_from_arg, "/").to_string();
+            let url_from_arg = Regex::new(r"\\")
+                .unwrap()
+                .replace_all(url_from_arg, "/")
+                .to_string();
 
             let process_for_url = tokio::spawn(async move {
-                
-                match url_from_arg.find("//")
-                {
+                match url_from_arg.find("//") {
                     Some(byte_id) => {
                         let protocol_ = &url_from_arg[..byte_id + 2]; // select protocol which is used to connect with added url
                         let url_without_protocol = url_from_arg.replace(protocol_, ""); // url without protocol section for better error showing in error arms
-    
-                        if protocol_ == "https://" || protocol_ == "http://"
-                        {
+
+                        if protocol_ == "https://" || protocol_ == "http://" {
                             let request = reqwest::get(url_from_arg).await;
                             match request
                             {
@@ -191,34 +186,34 @@ async fn main() {
                                 },
                                 Err(err) => println!("Program coudn't sent request to added addres by you ({url_name}). Error description:\n{err_desc}", err_desc = err.to_string(), url_name = url_without_protocol)
                             };
-                        }
-                        else
-                        {
+                        } else {
                             println!("You add bad url construction for adress: {url_name}!!!\nUrl must starts with protocols http or https in this from \"https://{url_name}\" (\"https://target_domain.tld\") or \"http://{url_name}\" (\"http://target_domain.tld\")", url_name = url_without_protocol)
-                        };    
-                    },
-                    None => println!("You add bad adress url format for {}", url_from_arg)
+                        };
+                    }
+                    None => println!("You add bad adress url format for {}", url_from_arg),
                 };
-                
             });
             joinhandle_process_vec.push(process_for_url);
-        };
+        }
 
         let mut url_for_task_num = 0;
-        for process in joinhandle_process_vec // enable result from sub task handled by tokio runtime
+        for process in joinhandle_process_vec
+        // enable result from sub task handled by tokio runtime
         {
             let result = process.await;
             url_for_task_num += 1;
             match result {
                 Err(_) => {
-                    println!("Program coudn't fire task for url: {}", urls_from_arg[url_for_task_num]);
-                },
-                _ => continue
+                    println!(
+                        "Program coudn't fire task for url: {}",
+                        urls_from_arg[url_for_task_num]
+                    );
+                }
+                _ => continue,
             };
-        };
-    }
-    else
-    { // Launch GUI
+        }
+    } else {
+        // Launch GUI
         // GUI library: FLTK, GLK
         println!("GUI application has been launched!!!");
         gui::create(); // create GUI app
