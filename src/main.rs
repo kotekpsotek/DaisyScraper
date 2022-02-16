@@ -11,7 +11,10 @@ use std::{
 };
 use tokio::{self, task::JoinHandle};
 
-mod gui;
+mod gui; // GUI module
+mod config { // GUI config
+    pub mod default;
+}
 
 #[derive(Serialize, Deserialize)]
 struct JsonDocument {
