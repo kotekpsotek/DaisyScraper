@@ -1,4 +1,4 @@
-use super::config::default;
+use super::config::default as config;
 #[allow(unused_imports)]
 use fltk::{
     self,
@@ -9,19 +9,25 @@ use fltk::{
     input::Input,
     prelude::*,
     window::Window,
+    draw
 }; // GUI Library: Fast Light ToolKit
 use fltk_evented::Listener;
 use fltk_flex::Flex;
 use fltk_theme::*;
-
-const BUTTON_COLOR: (u8, u8, u8) = (48, 55, 110);
-const INPUT_COLOR: (u8, u8, u8) = (32, 39, 89);
 
 #[allow(dead_code)]
 enum ElementType {
     Frame,
     Button,
     Input,
+}
+
+#[allow(dead_code)]
+enum ActionType {
+    Create,
+    Read,
+    Update,
+    Delete
 }
 
 struct TransferredStyleData {
@@ -32,14 +38,15 @@ struct TransferredStyleData {
 
 struct LoadElement;
 impl LoadElement {
-    fn create(window: &mut Window) {
+    pub fn create(window: &mut Window, set: &config::Setting) {
         // from outside you should invoke only this function no any other function (this is simplier way to invoke the function)
-        Self::create_top_bar(&mut *window);
-        Self::create_search_bar(&mut *window);
+        Self::create_top_bar(&mut *window, &*set);
+        Self::create_search_bar(&mut *window, &*set);
+        Self::cru_search_frame(&mut *window, ActionType::Create, &*set);
     }
 
     // Create Top Bar
-    fn create_top_bar(window: &mut Window) {
+    fn create_top_bar(window: &mut Window, set: &config::Setting) {
         // Button size tuple type
         let btn_size = 150; // x, y
 
@@ -48,13 +55,14 @@ impl LoadElement {
         f_con.set_pos(f_con.clone().center_x(&*window).x() + (120 / 2), 50);
 
         // Add buttons to container
+        let btn_color = set.btn_element_background_color.clone().to_rgb();
         // -- Button: Search
         let mut search_btn = Button::default().center_of(&mut f_con).with_label("C");
-        Self::set_static_styles_for_buttons(search_btn.clone(), ElementType::Button, TransferredStyleData { icon:  Some(SvgImage::load("svg/search.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "search" ("search.svg")"#)), color: Some(BUTTON_COLOR), label: Some("Search") });
+        Self::set_static_styles_for_buttons(search_btn.clone(), ElementType::Button, TransferredStyleData { icon:  Some(SvgImage::load("svg/search.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "search" ("search.svg")"#)), color: Some(btn_color), label: Some("Search") });
 
         // -- Button: Menu
         let mut menu_btn = Button::default().center_of(&mut f_con);
-        Self::set_static_styles_for_buttons(menu_btn.clone(), ElementType::Button, TransferredStyleData { icon: Some(SvgImage::load("svg/menu.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "menu" ("menu.svg")"#)), color: Some(BUTTON_COLOR), label: Some("Menu") });
+        Self::set_static_styles_for_buttons(menu_btn.clone(), ElementType::Button, TransferredStyleData { icon: Some(SvgImage::load("svg/menu.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "menu" ("menu.svg")"#)), color: Some(btn_color), label: Some("Menu") });
 
         // Size of buttons
         f_con.set_size(&mut search_btn, btn_size); // width: of the button
@@ -65,7 +73,7 @@ impl LoadElement {
     }
 
     // Create Search Bar placed on top
-    fn create_search_bar(window: &mut Window) {
+    fn create_search_bar(window: &mut Window, set: &config::Setting) {
         // Container for Bar Elements
         let mut fl_container = Flex::default()
             .with_size(650, 55)
@@ -82,7 +90,7 @@ impl LoadElement {
         let label_txt: &'static str = "Put URL/URLs";
         let mut search_input = Input::default();
         search_input.set_value(label_txt);
-        search_input.set_text_color(Color::White);
+        search_input.set_text_color(set.element_font_color);
         search_input.set_text_font(Font::Courier);
         search_input.set_text_size(15);
         LoadElement::set_static_styles_for_buttons(
@@ -90,7 +98,7 @@ impl LoadElement {
             ElementType::Input,
             TransferredStyleData {
                 icon: None,
-                color: Some(INPUT_COLOR),
+                color: Some(set.inp_element_background_color.to_rgb()),
                 label: None,
             },
         ); // This function must be here if you would like to input element events works correctly
@@ -181,14 +189,14 @@ impl LoadElement {
 
         // Add styles and defaults behaviours for buttons
         // -- Button: Focus on Search
-        LoadElement::set_static_styles_for_buttons(foucus_on_search_btn.clone(), ElementType::Button, TransferredStyleData { icon: Some(SvgImage::load("svg/pointer.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "pointer" ("pointer.svg")"#)), color: Some(BUTTON_COLOR), label: Some("Start Typing") });
+        LoadElement::set_static_styles_for_buttons(foucus_on_search_btn.clone(), ElementType::Button, TransferredStyleData { icon: Some(SvgImage::load("svg/pointer.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "pointer" ("pointer.svg")"#)), color: Some(set.btn_element_background_color.to_rgb()), label: Some("Start Typing") });
         // -- Button: Add Link
         LoadElement::set_static_styles_for_buttons(
             add_link_to_link_list_btn.clone(),
             ElementType::Button,
             TransferredStyleData {
                 icon: Some(add_link_image),
-                color: Some(BUTTON_COLOR),
+                color: Some(set.btn_element_background_color.to_rgb()),
                 label: Some("Add Link"),
             },
         );
@@ -198,7 +206,7 @@ impl LoadElement {
             ElementType::Button,
             TransferredStyleData {
                 icon: Some(start_scrap_words_image),
-                color: Some(BUTTON_COLOR),
+                color: Some(set.btn_element_background_color.to_rgb()),
                 label: Some("Scrap Words"),
             },
         );
@@ -213,14 +221,32 @@ impl LoadElement {
         fl_container.end();
     }
 
-    fn set_static_styles_for_buttons<
-        Elem: WidgetExt + WidgetBase + std::default::Default + Clone + 'static,
+    // Create/Read/Update Search Frame -> this is a frame with searching url adresses
+    fn cru_search_frame(window: &mut Window, _ac: ActionType, set: &config::Setting)
+    {
+        // Draw window for flex container
+        window.draw({
+            let frame_background_color = set.fr_element_background_color; 
+            move |_| {
+                draw::draw_box(FrameType::BorderBox, 0, 200, 100, 100, frame_background_color);
+            }
+        });
+        // Flex Container
+        /* let mut flexx = Flex::default()
+            .column()
+            .with_size(500, 300)
+            .center_x(&mut *window);
+        flexx.set_selection_color(Color::White);
+
+        flexx.end(); */
+    }
+
+    fn set_static_styles_for_buttons<Elem: WidgetExt + WidgetBase + std::default::Default + Clone + 'static,
     >(
         mut elem: Elem,
         elem_type: ElementType,
         additional_elements: TransferredStyleData,
-    )
-    // this function simplifing set styles for elements which implements WifgetExt trait and this action should be call from set static types for elements
+    ) // this function simplifing set styles for elements which implements WifgetExt trait and this action should be call from set static types for elements
     {
         // Default Style setting
         if let Some(v) = additional_elements.color {
@@ -238,33 +264,29 @@ impl LoadElement {
                 elem.set_label_font(Font::Courier);
 
                 // Listen events
-                l_elem.on_hover(|btn| {
+                let leave_listener = { // leave event listener
+                    let clone_btn_color = additional_elements.color.unwrap().clone();
+                    move |btn: &mut Elem| {
+                        fltk::draw::set_cursor(Cursor::Default);
+                        btn.set_color(Color::from_rgb(
+                            clone_btn_color.0,
+                            clone_btn_color.1,
+                            clone_btn_color.2,
+                        ));
+                    }
+                };
+                let hover_listener = |btn: &mut Elem| { // hover event listener
                     fltk::draw::set_cursor(Cursor::Hand);
                     btn.set_color(btn.color().darker());
-                });
+                };
 
-                l_elem.on_leave(|btn| {
-                    fltk::draw::set_cursor(Cursor::Default);
-                    btn.set_color(Color::from_rgb(
-                        BUTTON_COLOR.0,
-                        BUTTON_COLOR.1,
-                        BUTTON_COLOR.2,
-                    ));
-                });
+                l_elem.on_hover(hover_listener);
 
-                l_elem.on_hover(|btn| {
-                    fltk::draw::set_cursor(Cursor::Hand);
-                    btn.set_color(btn.color().darker());
-                });
+                l_elem.on_leave(leave_listener);
 
-                l_elem.on_leave(|btn| {
-                    fltk::draw::set_cursor(Cursor::Default);
-                    btn.set_color(Color::from_rgb(
-                        BUTTON_COLOR.0,
-                        BUTTON_COLOR.1,
-                        BUTTON_COLOR.2,
-                    ));
-                });
+                l_elem.on_hover(hover_listener);
+
+                l_elem.on_leave(leave_listener);
             }
             ElementType::Input => {
                 elem.set_selection_color(Color::Black);
@@ -277,15 +299,16 @@ impl LoadElement {
 pub fn create() {
     let app_ = fltk::app::App::default();
     let mut wn_ = fltk::window::Window::new(0, 0, 900, 900, "Daisy Scraper");
+    let settings = config::Setting::app_default();
 
     // Set fonts for elements
-    Font::set_font(Font::Courier, &default::Setting::bars_default().font); // replace Font::Courier by custon font
+    Font::set_font(Font::Courier, &settings.font); // replace Font::Courier by custon font
 
-    // Set bacground Color
-    wn_.set_color(Color::from_rgb(2, 7, 46));
+    // Set bacground Color of this application window
+    wn_.set_color(settings.app_backround_color.clone());
 
     // Create Elements
-    LoadElement::create(&mut wn_); // create search GUI
+    LoadElement::create(&mut wn_, &settings); // create search GUI
 
     wn_.end();
     wn_.show();
