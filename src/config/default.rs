@@ -6,7 +6,8 @@ pub struct Setting {
     pub app_backround_color: Color, // Application background color
     pub btn_element_background_color: Color, // Color for elements like: Buttons
     pub inp_element_background_color: Color, // Color for elements like: Inputs elements and text areas,
-    pub fr_element_background_color: Color // Color for elements like: Frames which are in two menu ("Search" and "Menu")
+    pub fr_element_background_color: Color, // Color for elements like: Frames which are in two menu ("Search" and "Menu")
+    pub fr_elements_top_bar_background_color: Color // Color for elements which are in frames top bar 
 }
 
 impl Setting {
@@ -17,7 +18,8 @@ impl Setting {
             app_backround_color: Color::from_rgb(2, 7, 46),
             btn_element_background_color: Color::from_rgb(48, 55, 110),
             inp_element_background_color: Color::from_rgb(32, 39, 89),
-            fr_element_background_color: Color::White
+            fr_element_background_color: Color::from_rgb(48, 55, 110),
+            fr_elements_top_bar_background_color: Color::rgb_color(32, 39, 89)
         }
     }
 }
