@@ -9,7 +9,8 @@ use fltk::{
     input::Input,
     prelude::*,
     window::Window,
-    draw
+    draw,
+    group
 }; // GUI Library: Fast Light ToolKit
 use fltk_evented::Listener;
 use fltk_flex::Flex;
@@ -77,8 +78,7 @@ impl LoadElement {
         // Container for Bar Elements
         let mut fl_container = Flex::default()
             .with_size(650, 55)
-            .with_label("flex_container2")
-            .with_pos(100, 120)
+            .with_pos(100, 120) // 15 point space between other containers in y axis
             .row()
             .center_x(&*window);
 
@@ -222,23 +222,78 @@ impl LoadElement {
     }
 
     // Create/Read/Update Search Frame -> this is a frame with searching url adresses
-    fn cru_search_frame(window: &mut Window, _ac: ActionType, set: &config::Setting)
+    fn cru_search_frame(window: &mut Window, _ac: ActionType, set: &config::Setting) -> Vec<group::Scroll>
     {
-        // Draw window for flex container
-        window.draw({
-            let frame_background_color = set.fr_element_background_color; 
-            move |_| {
-                draw::draw_box(FrameType::BorderBox, 0, 200, 100, 100, frame_background_color);
+        let mut return_scroll_element: Vec<group::Scroll> = Vec::new();
+        // Create 2 containers: 1 - top bar for buttons, 2 - scroll element for other elements which can be added to him
+        let flex_container_width_height = 650;
+        let window_w = window.width() - flex_container_width_height;
+        let mut flex_column = Flex::default()
+            .with_size(flex_container_width_height + 15, flex_container_width_height)
+            .with_pos(window_w/2, 190)
+            .column();
+        flex_column.set_pad(0);
+        
+        // -- TopBar container
+        let mut buttons_bar_main = Flex::default()
+            .row();
+        buttons_bar_main.set_frame(FrameType::BorderBox);
+        buttons_bar_main.set_color(set.btn_element_background_color);
+        buttons_bar_main.end();
+
+        // -- ScrollElements container
+        let mut elements_scroll = group::Scroll::new(0, 0, 0, 0, "");
+        elements_scroll.set_frame(FrameType::BorderBox);
+        elements_scroll.set_color(set.btn_element_background_color);
+        elements_scroll.end();
+        return_scroll_element.push(elements_scroll.clone()); 
+
+        // -- Set Size for this two containers
+        flex_column.set_size(&mut buttons_bar_main, 50); // height of buttons bar
+        flex_column.set_size(&mut elements_scroll, flex_container_width_height - 50); // height of scroll elemenets container
+
+        // Stop Load changes to elements
+        flex_column.end();
+
+        // Create Elements for TopBar
+        // -- Select All button
+        let mut select_all_button = Button::default()
+        .with_label("Select All")
+        .with_size(75, 50)
+        .with_pos(window_w / 2, 190);
+        select_all_button.clear_visible_focus();
+        select_all_button.set_color(set.fr_elements_top_bar_background_color);
+        select_all_button.set_label_color(set.element_font_color);
+        select_all_button.set_label_font(Font::Courier);
+        select_all_button.set_frame(FrameType::BorderBox);
+
+        // -- Count Info Element
+        let mut count_info = Frame::default()
+            .with_label("Elements Count: 0")
+            .with_size(150, 50)
+            .with_pos(650 - 10, 190);
+        count_info.set_color(set.fr_elements_top_bar_background_color);
+        count_info.set_label_color(set.element_font_color);
+        count_info.set_label_font(Font::Courier);
+        count_info.set_frame(FrameType::BorderBox);
+
+        // -- Events Handle Section for TopBar button
+        let mut select_all_button_list: Listener<_> = select_all_button.into();
+
+        select_all_button_list.on_hover(|btn| {
+            btn.set_color(btn.color().lighter());
+            draw::set_cursor(Cursor::Hand);
+        });
+
+        select_all_button_list.on_leave({
+            let def_color_button = set.fr_elements_top_bar_background_color;
+            move |btn| {
+                btn.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
             }
         });
-        // Flex Container
-        /* let mut flexx = Flex::default()
-            .column()
-            .with_size(500, 300)
-            .center_x(&mut *window);
-        flexx.set_selection_color(Color::White);
 
-        flexx.end(); */
+        return_scroll_element
     }
 
     fn set_static_styles_for_buttons<Elem: WidgetExt + WidgetBase + std::default::Default + Clone + 'static,
