@@ -16,8 +16,9 @@ pub struct Setting {
 }
 
 // Remember: This structure is only more redable representation for keys which are into gui.json file (that is created for empowerment for user better understand what that key change) // This structure shoudn't extends Settings structure for other keys before when that in Settings struct that keys aren't added first
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct GuiSettings {
+    use_settings: bool, // It's allow to set custom settings or not. This is a exception for top regule
     font_file_name: String, // name of custom font in "fonts" dir
     font_color: (u8, u8, u8), // Font colot for elements
     main_backround_color_rgb: (u8, u8, u8), // Application background color
@@ -32,8 +33,9 @@ impl Setting {
         let settings_from_file = Self::load_settings_from_file();
         match settings_from_file {
             Ok(from_file) => {
+                let path_to_fonts = Path::new(&format!("fonts")).join(&format!("{}", from_file.font_file_name));
                 Self {
-                    font: Font::load_font(format!("fonts/{}", from_file.font_file_name)).unwrap(),
+                    font: Font::load_font(path_to_fonts).unwrap(),
                     element_font_color: Color::from_rgb(from_file.font_color.0,from_file.font_color.1, from_file.font_color.2),
                     app_backround_color: Color::from_rgb(from_file.main_backround_color_rgb.0,from_file.main_backround_color_rgb.1, from_file.main_backround_color_rgb.2),
                     btn_element_background_color: Color::from_rgb(from_file.buttons_1st_backround_color_rgb.0,from_file.buttons_1st_backround_color_rgb.1, from_file.buttons_1st_backround_color_rgb.2),
@@ -58,8 +60,7 @@ impl Setting {
     }
 
     fn load_settings_from_file() -> Result<GuiSettings, String> {
-        let path = format!("settings/gui.json");
-        let path_to_gui_settings = Path::new(&path);
+        let path_to_gui_settings = Path::new(&format!("settings")).join("gui.json");
         if path_to_gui_settings.exists() {
             let read_file = fs::read_to_string(&path_to_gui_settings);
             let file_content = if let Err(err) = read_file {
@@ -67,9 +68,20 @@ impl Setting {
             } else {
                 read_file.unwrap()
             };
-            match serde_json::from_str(file_content.as_str()) {
-                Ok(data) => Ok(data),
-                Err(err) => Err(err.to_string()),
+            let match_check = serde_json::from_str(file_content.as_str());
+            match match_check {
+                Ok(data) => {
+                    let data: GuiSettings = data;
+                    // Settings are setted only when user set use_settings to true
+                    if data.use_settings
+                    {
+                        Ok(data)
+                    }
+                    else {
+                        Err("settings aren't setted".to_string())
+                    }
+                },
+                Err(err) => Err(err.to_string())
             }
         } else {
             Err("path_doesn't_exists".to_string())

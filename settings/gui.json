@@ -1,9 +1,10 @@
 {
-    "font_file_name": "",
+    "use_settings": true,
+    "font_file_name": "robosapien.ttf",
     "font_color": [0, 0, 0],
     "main_backround_color_rgb": [0, 0, 0],
     "buttons_1st_backround_color_rgb": [0, 0, 0],
-    "buttons_2st_backround_color_rgb": [0, 0, 0],
-    "input_backround_color_rgb": [0, 0, 0],
-    "frame_background_color_rgb": [0, 0, 0]
+    "input_backround_color_rgb": [255, 255, 255],
+    "frame_background_color_rgb": [0, 0, 0],
+    "frame_top_bar_elements_background_color": [0, 0, 0]
 }
