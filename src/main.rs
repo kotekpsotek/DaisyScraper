@@ -1,7 +1,8 @@
 mod gui; // GUI module
 mod scrap; // SCRAP module
-mod config { // GUI config
+mod config { // GUI config and Other configs
     pub mod default;
+    pub mod additional; // additional functions for application
 }
 use clap::{self, App, Arg};
 use scrap::scrap_from;
@@ -32,4 +33,16 @@ async fn main() {
         println!("GUI application has been launched!!!");
         gui::create(); // create GUI app
     };
+}
+
+#[cfg(test)]
+mod Test {
+    use crate::config::additional;
+    #[test]
+    fn load_flags_from_file_test() {
+        let mut flags = additional::Features::get_flags_data_from_words_files().unwrap();
+        /* let specified_element = flags.get_element_from_index(0);
+        let port = specified_element.value.2.unwrap();
+        println!("{}", port); */
+    }
 }

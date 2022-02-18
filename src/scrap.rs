@@ -18,20 +18,78 @@ struct JsonDocument {
 
 const FOLDER_FILES_WITH_WORDS: &str = "files";
 
-fn save_words(d: Vec<String>, u: String) -> Result<String, String> {
-    // create file title
+fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, Option<String>)>) -> String {
+    /* Parameters Description: 
+        base_name - it's a base name of file without any flags only with time downloaded using chrono crate,
+        flags - this is a list of data which must be writed to the name // Flags are always added to the end of the name // Values in tuple: 0 - protocol off url, 1 - name of url
+    */
+    let flg_name_per_flg_vec_index = ["from"]; // 0 - from:page_url (From what url words has been downloaded)
+    let mut name_conversion = base_name; // this is a value where new values will be add
+    name_conversion.push_str(" flags_section "); // add "monkey" symbol to the end of name 
+    
+    let flag_count = flg_name_per_flg_vec_index.len();
+    let mut it_count = 0;
+    while flag_count > it_count { // loop bases on 
+        // Flag fragments
+        let name_for_flag = flg_name_per_flg_vec_index[it_count];
+        let protocol_for_flag = flags[it_count].0
+            .replace("://", "");
+        let domain_for_flag = flags[it_count].1
+            .clone();
+        let port = if let Some(val) = flags[it_count].2.clone() {
+            val
+        }
+        else
+        {
+            String::from("null")
+        };
+        let value_for_flag = (protocol_for_flag, domain_for_flag, port);
+        // Ready Flag
+        let mut ready_flag = format!("{name}={value:?}", name = name_for_flag, value = value_for_flag);
+        ready_flag.push('&');
+
+        // Add Flag to Name which is return
+        name_conversion.push_str(&ready_flag);
+
+        it_count += 1;
+    };
+    let mut ready_name = name_conversion
+        .trim()
+        .replace("\"", "");
+    let ready_name = if ready_name.ends_with("&") {
+        ready_name.pop().unwrap();
+        ready_name
+    }
+    else {
+        ready_name
+    };
+    ready_name
+}
+
+fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>)) -> Result<String, String> {
+    /* Parameters Description:
+        d - this is a list with scraped words from indicated url,
+        u - it is a url from where response has been send (response to your reequest because if you would like scrap words you must send request to some kind url),
+        from - it is a collection of url from where words has been downloaded: 0 [key] - this is not converted to be correct for FileSystem protocol of page, 1 [key] - this is a url from where words has been downloaded, 2 - port from the Url or None value,
+    */
+    
+    // create time for file title
     let time_now = Local::now().format("%Y %b %d %H-%M-%S%.3f %z").to_string();
+    // Create vector with flags which are next add to the file name
+    let flags_vec = vec![from];
+    
 
     // Serialize Data To JSON
     let struct_in = JsonDocument { url: u, words: d };
-    let content_json_check = serde_json::to_string(&struct_in); // TODO: Better error handling without .expect
+    let content_json_check = serde_json::to_string(&struct_in);
 
     match content_json_check {
         Ok(converted_val) => {
             // Save File
+            let file_name: String = format!("{}.json", add_flags_to_file_name(format!("{}", time_now), flags_vec.clone()));
             let path_to: PathBuf = Path::new(".")
                 .join(FOLDER_FILES_WITH_WORDS)
-                .join(format!("{}.json", time_now));
+                .join(file_name);
             match fs::write(path_to, converted_val) {
                 Ok(_) => Ok("saved".to_string()),
                 Err(err) => Err(err.to_string()),
@@ -56,9 +114,9 @@ pub async fn scrap_from(urls_from_arg: Vec<&str>)
             match url_from_arg.find("//") {
                 Some(byte_id) => {
                     let protocol_ = &url_from_arg[..byte_id + 2]; // select protocol which is used to connect with added url
-                    let url_without_protocol = url_from_arg.replace(protocol_, ""); // url without protocol section for better error showing in error arms
+                    let mut url_without_protocol = url_from_arg.replace(protocol_, ""); // url without protocol section for better error showing in error arms
                     if protocol_ == "https://" || protocol_ == "http://" {
-                        let request = reqwest::get(url_from_arg).await;
+                        let request = reqwest::get(&url_from_arg).await;
                         match request
                         {
                             Ok(res) => 
@@ -141,8 +199,31 @@ pub async fn scrap_from(urls_from_arg: Vec<&str>)
                                         };
                                     };
             
-                                    // println!("{}", string_vec.join(" ")); // Printing scrapped words in CLI
-                                    let save_result = save_words(string_vec, response_url);
+                                    // TODO: Check if this action shoudn't be in better place
+                                    // Prepare url to be saved correctly (remove dangerous characters like "/" on the end of url)
+                                    let url_without_protocol = if url_without_protocol.ends_with("/") {
+                                        url_without_protocol.pop();
+                                        url_without_protocol
+                                    }
+                                    else {
+                                        url_without_protocol
+                                    };
+
+                                    // Port of the URL
+                                    let regex_port = Regex::new(r":\d{1,}").unwrap();
+                                    let port = if let Some(port) = regex_port.find(&url_without_protocol) {
+                                        Some(port.as_str().replace(":", "").to_string())
+                                    }   
+                                    else
+                                    {
+                                        None
+                                    };
+
+                                    // Remove Port from the default URL
+                                    let url_without_protocol = regex_port.replace(&url_without_protocol, "").to_string();
+                                    
+
+                                    let save_result = save_words(string_vec, response_url, (protocol_.to_string(), url_without_protocol, port));
                                     match save_result
                                     {
                                         Ok(_) => println!("Words has been saved!!!"),
