@@ -1,3 +1,7 @@
+use core::panic;
+
+use crate::config::default::Setting;
+
 use super::config::default as config;
 #[allow(unused_imports)]
 use fltk::{
@@ -10,11 +14,12 @@ use fltk::{
     prelude::*,
     window::Window,
     draw,
-    group
+    tree::{ Tree, TreeItem }
 }; // GUI Library: Fast Light ToolKit
 use fltk_evented::Listener;
 use fltk_flex::Flex;
 use fltk_theme::*;
+use regex::Regex;
 
 #[allow(dead_code)]
 enum ElementType {
@@ -27,7 +32,7 @@ enum ElementType {
 enum ActionType {
     Create,
     Read,
-    Update,
+    Update(&'static str),
     Delete
 }
 
@@ -37,13 +42,27 @@ struct TransferredStyleData {
     label: Option<&'static str>,
 }
 
+#[derive(Debug)]
+struct ContainerForLinks { // Struct for Scroll container which is add here in LoadElement::create_search_frame method
+    src: fltk::tree::Tree
+}
+
 struct LoadElement;
 impl LoadElement {
     pub fn create(window: &mut Window, set: &config::Setting) {
         // from outside you should invoke only this function no any other function (this is simplier way to invoke the function)
+        /* Order of creating elements and adding it to the guiL:
+            1. Top Bar has been created,
+            2. Frame has been created (this is for because element from frame should be returned to section where links are added to allow add links to the frame)
+        */
+        
+        // Create Top Bar
         Self::create_top_bar(&mut *window, &*set);
-        Self::create_search_bar(&mut *window, &*set);
-        Self::cru_search_frame(&mut *window, ActionType::Create, &*set);
+        // Create Frame
+        let container_for_links: ContainerForLinks = Self::crud_search_frame(&mut *window, ActionType::Create, &*set);
+        let links_container: Tree = container_for_links.src;
+        // Create Search Bar
+        Self::create_search_bar(&mut *window, &*set, links_container);
     }
 
     // Create Top Bar
@@ -74,7 +93,7 @@ impl LoadElement {
     }
 
     // Create Search Bar placed on top
-    fn create_search_bar(window: &mut Window, set: &config::Setting) {
+    fn create_search_bar(window: &mut Window, set: &config::Setting, mut links_list: Tree) {
         // Container for Bar Elements
         let mut fl_container = Flex::default()
             .with_size(650, 55)
@@ -138,6 +157,7 @@ impl LoadElement {
             // When user click on "Start Typing" button
             let mut search_input = search_input.clone();
             move |btn| {
+                println!("Test 123");
                 search_input_interaction_action(&mut search_input); //
                 btn.clear_visible_focus();
                 search_input.take_focus().unwrap();
@@ -147,20 +167,33 @@ impl LoadElement {
         // -- Button: Add Links To List
         add_link_to_list_listener.on_click({
             // add urls to url list // TODO: urls must be reall add to url list
-            let search_input = search_input.clone();
+            let mut search_input = search_input.clone();
+            let set = crate::config::default::Setting::app_default(); // TODO: this is only temporary solution so i must replace that or all sharing settin between functions patern
+
             move |_btn| {
                 if search_input.value().trim().len() > 0
                     && search_input.value() != label_txt.to_string()
                 {
-                    let b_values = search_input.value();
+                    let b_values = search_input.value().clone();
                     let values = b_values.split(" ").collect::<Vec<&str>>();
-                    for url in values {
+                    for url in values { // Add Links to the Container
                         if url.starts_with("https://") || url.starts_with("http://") {
-                            // TODO: In this place program add urls to list
-                            println!("{}", url);
+                            // When list is closed list becomes open now
+                            if links_list.is_close("Links List") {
+                                if links_list.open("Links List", true).is_err() {
+                                    ()
+                                }
+                            };
+                            
+                            let url = url.replace("//", &"\\".repeat(4)); // change url for stop create new sub-lists
+                            let mut item = links_list.root().unwrap().tree().unwrap().add(&url).unwrap();
+                            item.set_label_color(set.element_font_color); // Dont't remove set variable if you would like to application work
+                            item.set_label_font(Font::Courier);
+                            links_list.redraw();
                         } else { // TODO: alert system which inform user
                         };
-                    }
+                    };
+                    // This must work better search_input.set_value(""); // after we add to the links container all links input element should be clean
                 };
             }
         });
@@ -222,9 +255,9 @@ impl LoadElement {
     }
 
     // Create/Read/Update Search Frame -> this is a frame with searching url adresses
-    fn cru_search_frame(window: &mut Window, _ac: ActionType, set: &config::Setting) -> Vec<group::Scroll>
+    fn crud_search_frame(window: &mut Window, ac: ActionType, set: &config::Setting) -> ContainerForLinks
     {
-        let mut return_scroll_element: Vec<group::Scroll> = Vec::new();
+        let container_for_links: ContainerForLinks;
         // Create 2 containers: 1 - top bar for buttons, 2 - scroll element for other elements which can be added to him
         let flex_container_width_height = 650;
         let window_w = window.width() - flex_container_width_height;
@@ -240,21 +273,24 @@ impl LoadElement {
         buttons_bar_main.set_frame(FrameType::BorderBox);
         buttons_bar_main.set_color(set.btn_element_background_color);
         buttons_bar_main.end();
-
-        // -- ScrollElements container
-        let mut elements_scroll = group::Scroll::new(0, 0, 0, 0, "");
-        elements_scroll.set_frame(FrameType::BorderBox);
-        elements_scroll.set_color(set.btn_element_background_color);
-        elements_scroll.end();
-        return_scroll_element.push(elements_scroll.clone()); 
-
+        
+        // -- ScrollElements container // Scroll Element only
+        let mut tree = fltk::tree::Tree::new(0, 0, flex_container_width_height, flex_container_width_height - 50, "");
+        tree.set_root_label("Links List");
+        tree.set_frame(FrameType::BorderBox);
+        tree.set_color(set.fr_element_background_color);
+        let mut t_root = tree.root().unwrap();
+        t_root.set_label_font(Font::Courier);
+        t_root.set_label_color(set.element_font_color);
+        t_root.set_label_size(18);
+        
         // -- Set Size for this two containers
         flex_column.set_size(&mut buttons_bar_main, 50); // height of buttons bar
-        flex_column.set_size(&mut elements_scroll, flex_container_width_height - 50); // height of scroll elemenets container
-
+        // flex_column.set_size(&mut elements_scroll, flex_container_width_height - 50); // height of scroll elemenets container
+        
         // Stop Load changes to elements
         flex_column.end();
-
+        
         // Create Elements for TopBar
         // -- Select All button
         let mut select_all_button = Button::default()
@@ -266,7 +302,7 @@ impl LoadElement {
         select_all_button.set_label_color(set.element_font_color);
         select_all_button.set_label_font(Font::Courier);
         select_all_button.set_frame(FrameType::BorderBox);
-
+        
         // -- Count Info Element
         let mut count_info = Frame::default()
             .with_label("Elements Count: 0")
@@ -276,15 +312,41 @@ impl LoadElement {
         count_info.set_label_color(set.element_font_color);
         count_info.set_label_font(Font::Courier);
         count_info.set_frame(FrameType::BorderBox);
-
+        
         // -- Events Handle Section for TopBar button
-        let mut select_all_button_list: Listener<_> = select_all_button.into();
+        let mut select_all_button_list: Listener<_> = select_all_button.into();        
+            
+        select_all_button_list.on_click({ // when user click on select on button
+            let mut tree = tree.clone();
+            move |_b| {
+                let items_list = tree.clone().get_items().unwrap();
+                for item in items_list {
+                    // When list is closed list becomes open now
+                    if tree.is_close("Links List") {
+                        tree.open("Links List", true).unwrap();
+                    };
 
+                    // Select all Elements and handle the selecting Result
+                    let select_all_action = tree.select_all(&item, true);
+                    match select_all_action { // TODO: Add error and success alert handling // in some kind of reason program return in this place a error
+                        Err(_) => (),
+                        Ok(_) => ()
+                    };
+
+                    // Unselect root wlement when it is selected
+                    let mut tree_root_element = tree.root().unwrap();
+                    if tree_root_element.is_selected() {
+                        tree_root_element.deselect();
+                    };
+                }
+            }
+        });
+        
         select_all_button_list.on_hover(|btn| {
             btn.set_color(btn.color().lighter());
             draw::set_cursor(Cursor::Hand);
         });
-
+        
         select_all_button_list.on_leave({
             let def_color_button = set.fr_elements_top_bar_background_color;
             move |btn| {
@@ -293,7 +355,10 @@ impl LoadElement {
             }
         });
 
-        return_scroll_element
+        // TODO: CRUD on created elements 
+
+        container_for_links = ContainerForLinks { src: tree };
+        container_for_links
     }
 
     fn set_static_styles_for_buttons<Elem: WidgetExt + WidgetBase + std::default::Default + Clone + 'static,
@@ -309,7 +374,6 @@ impl LoadElement {
         }
         elem.set_frame(widget_themes::OS_SPACER_THIN_DOWN_BOX);
         // Set specific style for element based on elem_type parameter which represent the real type of elem
-        let mut l_elem: Listener<_> = elem.clone().into();
         match elem_type {
             ElementType::Button => {
                 elem.set_label(additional_elements.label.unwrap());
@@ -317,31 +381,6 @@ impl LoadElement {
                 elem.set_image(additional_elements.icon);
                 elem.clear_visible_focus();
                 elem.set_label_font(Font::Courier);
-
-                // Listen events
-                let leave_listener = { // leave event listener
-                    let clone_btn_color = additional_elements.color.unwrap().clone();
-                    move |btn: &mut Elem| {
-                        fltk::draw::set_cursor(Cursor::Default);
-                        btn.set_color(Color::from_rgb(
-                            clone_btn_color.0,
-                            clone_btn_color.1,
-                            clone_btn_color.2,
-                        ));
-                    }
-                };
-                let hover_listener = |btn: &mut Elem| { // hover event listener
-                    fltk::draw::set_cursor(Cursor::Hand);
-                    btn.set_color(btn.color().darker());
-                };
-
-                l_elem.on_hover(hover_listener);
-
-                l_elem.on_leave(leave_listener);
-
-                l_elem.on_hover(hover_listener);
-
-                l_elem.on_leave(leave_listener);
             }
             ElementType::Input => {
                 elem.set_selection_color(Color::Black);

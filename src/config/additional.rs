@@ -5,6 +5,7 @@ use std::{
 };
 use fs_extra::dir;
 
+#[allow(dead_code)]
 pub struct Features;
 impl Features {
     pub fn get_flags_data_from_words_files() -> Result<Flags, String> { // this function must be safety for other components
@@ -93,10 +94,12 @@ impl Features {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Flags { // this structure includes into his body all flags and add methods to read this flags in simple way
     data: Vec<SingleFlag>
 }
 
+#[allow(dead_code)]
 impl Flags {
     pub fn get_elements_count(&self) -> usize {
         self.data.len()
@@ -117,11 +120,13 @@ impl Flags {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct SingleFlag {
     name: String,
     value: String
 }
 
+#[allow(dead_code)]
 impl SingleFlag {
     pub fn convert(&mut self) -> (String, String, Option<String>) { // for moment when this method was created the values can be only in tuple types
         // Remove Brackets
@@ -148,6 +153,7 @@ impl SingleFlag {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ReturnOutsideFrameData { // this is a struct with converted values which is returned from Flags get_element_from_index() method
     pub name: String,
     pub value: (String, String, Option<String>)
