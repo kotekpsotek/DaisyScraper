@@ -14,7 +14,8 @@ use fltk::{
     prelude::*,
     window::Window,
     draw,
-    tree::{ Tree, TreeItem }
+    tree::{ Tree, TreeItem },
+    dialog
 }; // GUI Library: Fast Light ToolKit
 use fltk_evented::Listener;
 use fltk_flex::Flex;
@@ -44,7 +45,8 @@ struct TransferredStyleData {
 
 #[derive(Debug)]
 struct ContainerForLinks { // Struct for Scroll container which is add here in LoadElement::create_search_frame method
-    src: fltk::tree::Tree
+    src: fltk::tree::Tree,
+    elements_in_count: Frame
 }
 
 struct LoadElement;
@@ -59,7 +61,7 @@ impl LoadElement {
         // Create Top Bar
         Self::create_top_bar(&mut *window, &*set);
         // Create Frame
-        let container_for_links: ContainerForLinks = Self::crud_search_frame(&mut *window, ActionType::Create, &*set);
+        let container_for_links: ContainerForLinks = Self::create_search_frame(&mut *window, &*set);
         let links_container: Tree = container_for_links.src;
         // Create Search Bar
         Self::create_search_bar(&mut *window, &*set, links_container);
@@ -189,11 +191,11 @@ impl LoadElement {
                             let mut item = links_list.root().unwrap().tree().unwrap().add(&url).unwrap();
                             item.set_label_color(set.element_font_color); // Dont't remove set variable if you would like to application work
                             item.set_label_font(Font::Courier);
-                            links_list.redraw();
+                            links_list.redraw(); // load visible changes for the user to the container with links
                         } else { // TODO: alert system which inform user
                         };
                     };
-                    // This must work better search_input.set_value(""); // after we add to the links container all links input element should be clean
+                    // This must work better search_input.set_value(""); // after we add to the links container all linkas input element should be clean
                 };
             }
         });
@@ -255,7 +257,7 @@ impl LoadElement {
     }
 
     // Create/Read/Update Search Frame -> this is a frame with searching url adresses
-    fn crud_search_frame(window: &mut Window, ac: ActionType, set: &config::Setting) -> ContainerForLinks
+    fn create_search_frame(window: &mut Window, set: &config::Setting) -> ContainerForLinks
     {
         let container_for_links: ContainerForLinks;
         // Create 2 containers: 1 - top bar for buttons, 2 - scroll element for other elements which can be added to him
@@ -302,6 +304,16 @@ impl LoadElement {
         select_all_button.set_label_color(set.element_font_color);
         select_all_button.set_label_font(Font::Courier);
         select_all_button.set_frame(FrameType::BorderBox);
+
+        // -- Delete Elements Button
+        let delete_button_img = SvgImage::load("svg/trash-icon.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "trash-icon" ("trash-icon.svg")"#);
+        let mut delete_buttton =  Button::default()
+            .with_size(50, 50)
+            .with_pos(window_w / 2 + 75, 190); // position button on window start
+        delete_buttton.clear_visible_focus();
+        delete_buttton.set_color(set.fr_elements_top_bar_background_color);
+        delete_buttton.set_frame(FrameType::BorderBox);
+        delete_buttton.set_image(Some(delete_button_img));
         
         // -- Count Info Element
         let mut count_info = Frame::default()
@@ -314,18 +326,19 @@ impl LoadElement {
         count_info.set_frame(FrameType::BorderBox);
         
         // -- Events Handle Section for TopBar button
-        let mut select_all_button_list: Listener<_> = select_all_button.into();        
+        let mut select_all_button_list: Listener<_> = select_all_button.into();
+        let mut delete_buttton_list: Listener<_> = delete_buttton.into();
             
         select_all_button_list.on_click({ // when user click on select on button
             let mut tree = tree.clone();
             move |_b| {
                 let items_list = tree.clone().get_items().unwrap();
-                for item in items_list {
-                    // When list is closed list becomes open now
-                    if tree.is_close("Links List") {
-                        tree.open("Links List", true).unwrap();
-                    };
+                // When list is closed list becomes open now
+                if tree.is_close("Links List") {
+                    tree.open("Links List", true).unwrap();
+                };
 
+                for item in items_list {
                     // Select all Elements and handle the selecting Result
                     let select_all_action = tree.select_all(&item, true);
                     match select_all_action { // TODO: Add error and success alert handling // in some kind of reason program return in this place a error
@@ -342,22 +355,64 @@ impl LoadElement {
             }
         });
         
-        select_all_button_list.on_hover(|btn| {
+        delete_buttton_list.on_click({
+            let mut tree = tree.clone();
+            let window = window.clone();
+            move |_| {
+                // -- Deselect root element for prevent in delete it accidentally
+                let mut root_element = tree.root().unwrap();
+                if root_element.is_selected() {
+                    root_element.deselect();
+                };
+
+                // -- Remove Selected Items
+                let selected_items = tree.get_selected_items();
+                match selected_items {
+                    Some(items) => {
+                        let choice: i32 = dialog::choice(window.width() / 2, 10, "Are sure to delete selected elements from links list?", "Yes", "No", ""); // value 1 = No, value 2 = Yes, value 3 = isn't presented
+                        println!("{}", choice);
+                        if choice == 0 { // only when user click on "Yes" button elements will be remove
+                            for item in items {
+                                let remove = tree.remove(&item);
+                                match remove {
+                                    Ok(_) => {
+                                        tree.redraw(); // load changes to the list
+                                        // TODO: update elements count in container amount + info about how many elements has been deleted
+                                    },
+                                    Err(err) => {
+                                        let _alert = dialog::alert(window.width() / 2, 10, &format!("Program coudn't delete selected elements from this reason: {}", err.to_string()));
+                                    }
+                                };
+                            };
+                        }
+                    },
+                    None => {
+                        let _alert = dialog::alert(window.width() / 2, 10, r#"No one element is selected. Click on element which you want delete or use "Select All" button to select all added elements!!!"#);
+                    }
+                }
+            }
+        });
+        // Below: Listen events for the both buttons
+        let both_hover = |btn: &mut Button| {
             btn.set_color(btn.color().lighter());
             draw::set_cursor(Cursor::Hand);
-        });
-        
-        select_all_button_list.on_leave({
+        };
+        let both_leave = {
             let def_color_button = set.fr_elements_top_bar_background_color;
-            move |btn| {
+            move |btn: &mut Button| {
                 btn.set_color(def_color_button);
                 draw::set_cursor(Cursor::Default);
             }
-        });
+        };
+        select_all_button_list.on_hover(both_hover);
+        select_all_button_list.on_leave(both_leave);
+
+        delete_buttton_list.on_hover(both_hover);
+        delete_buttton_list.on_leave(both_leave);
 
         // TODO: CRUD on created elements 
 
-        container_for_links = ContainerForLinks { src: tree };
+        container_for_links = ContainerForLinks { src: tree, elements_in_count: count_info };
         container_for_links
     }
 
