@@ -3,6 +3,7 @@ use core::panic;
 use crate::config::default::Setting;
 
 use super::config::default as config;
+use fltk::window::DoubleWindow;
 #[allow(unused_imports)]
 use fltk::{
     self,
@@ -33,7 +34,7 @@ enum ElementType {
 enum ActionType {
     Create,
     Read,
-    Update(&'static str),
+    Update,
     Delete
 }
 
@@ -43,11 +44,78 @@ struct TransferredStyleData {
     label: Option<&'static str>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ContainerForLinks { // Struct for Scroll container which is add here in LoadElement::create_search_frame method
     src: fltk::tree::Tree,
     elements_in_count: Frame
 }
+
+impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
+    fn update_list(&mut self, added_element: Vec<&str>, settings: &Setting, window: DoubleWindow, input: &mut Input) { 
+        for url in added_element { // Add Links to the Container
+            if url.starts_with("https://") || url.starts_with("http://") {                
+                // When list is closed list becomes open now
+                if self.src.is_close("Links List") {
+                    if self.src.open("Links List", true).is_err() { // When list coudn't be opened from some reason the program return empty tuple type to prevent before program crash 
+                        ()
+                    }
+                };
+            
+                // Update the links list
+                let url = url.replace("//", &"\\".repeat(4)); // change url for stop create new sub-lists
+                let item = self.src.root().unwrap().tree().unwrap().add(&url);
+                
+                // Add Element to the container only when the element didn't already exists
+                if let Some(mut item) = item {
+                    item.set_label_color(settings.element_font_color); // Dont't remove set variable if you would like to application work
+                    item.set_label_font(Font::Courier);
+                    self.src.redraw(); // load visible changes for the user to the container with links
+                    
+                    // Update displayed elemtnts count
+                    Self::update_elements_count(&mut self.elements_in_count, ActionType::Update, 1);
+
+                    // Clear Input with added links after succesfull add link to the container
+                    input.set_value("");
+                }
+                else {
+                    dialog::alert(window.width() / 2, 10, &format!("This URL: \"{}\" which is added to input field is already in the links list. The values which are in the list cound't be repeated multiple times. Links List allow only unique elements!!!", url));
+                };
+            } else { // When link starts without http:// | https:// 
+                dialog::alert(window.width() / 2, 10, &format!("The adding urls to the search field should starts with protocols http:// or https://. Your link \"{}\" should to begin with https:// or http:// protocol!!!", url));
+            };
+        };
+    }
+
+    // Update the elements in container count
+    fn update_elements_count(label: &mut Frame, at: ActionType, number: i32) {
+        // Get actual number elements in container
+        let actual_count_v = label.label();
+        let regex_number_f = Regex::new(r"[0-9]").unwrap();
+        let search_results_r = regex_number_f.find(actual_count_v.as_str()).unwrap().as_str();
+        let search_results_to_number = search_results_r.parse::<i32>().unwrap();
+
+        // Set greater or less number of the elements to the frame
+        let new_count = if let ActionType::Update = at {
+            search_results_to_number + number
+        }
+        else if let ActionType::Delete = at {
+            let result_of_adding = search_results_to_number - number;
+            // If value starts with - then value is 0 not minus value
+            if result_of_adding.to_string().starts_with("-") {
+                0
+            }
+            else {
+                result_of_adding
+            }
+        }
+        else {
+            0
+        };
+
+        let label_text = format!("Elements Count: {}", new_count);
+        label.set_label(&label_text);
+    }
+} 
 
 struct LoadElement;
 impl LoadElement {
@@ -62,9 +130,8 @@ impl LoadElement {
         Self::create_top_bar(&mut *window, &*set);
         // Create Frame
         let container_for_links: ContainerForLinks = Self::create_search_frame(&mut *window, &*set);
-        let links_container: Tree = container_for_links.src;
         // Create Search Bar
-        Self::create_search_bar(&mut *window, &*set, links_container);
+        Self::create_search_bar(&mut *window, &*set, container_for_links);
     }
 
     // Create Top Bar
@@ -95,7 +162,7 @@ impl LoadElement {
     }
 
     // Create Search Bar placed on top
-    fn create_search_bar(window: &mut Window, set: &config::Setting, mut links_list: Tree) {
+    fn create_search_bar(window: &mut Window, set: &config::Setting, mut links_list: ContainerForLinks) {
         // Container for Bar Elements
         let mut fl_container = Flex::default()
             .with_size(650, 55)
@@ -171,31 +238,15 @@ impl LoadElement {
             // add urls to url list // TODO: urls must be reall add to url list
             let mut search_input = search_input.clone();
             let set = crate::config::default::Setting::app_default(); // TODO: this is only temporary solution so i must replace that or all sharing settin between functions patern
+            let window = window.clone();
 
             move |_btn| {
                 if search_input.value().trim().len() > 0
                     && search_input.value() != label_txt.to_string()
                 {
                     let b_values = search_input.value().clone();
-                    let values = b_values.split(" ").collect::<Vec<&str>>();
-                    for url in values { // Add Links to the Container
-                        if url.starts_with("https://") || url.starts_with("http://") {
-                            // When list is closed list becomes open now
-                            if links_list.is_close("Links List") {
-                                if links_list.open("Links List", true).is_err() {
-                                    ()
-                                }
-                            };
-                            
-                            let url = url.replace("//", &"\\".repeat(4)); // change url for stop create new sub-lists
-                            let mut item = links_list.root().unwrap().tree().unwrap().add(&url).unwrap();
-                            item.set_label_color(set.element_font_color); // Dont't remove set variable if you would like to application work
-                            item.set_label_font(Font::Courier);
-                            links_list.redraw(); // load visible changes for the user to the container with links
-                        } else { // TODO: alert system which inform user
-                        };
-                    };
-                    // This must work better search_input.set_value(""); // after we add to the links container all linkas input element should be clean
+                    let values = b_values.trim().split(" ").collect::<Vec<&str>>();
+                    links_list.update_list(values, &set, window.clone(), &mut search_input); // links list: Add new elements to the links 
                 };
             }
         });
@@ -358,6 +409,7 @@ impl LoadElement {
         delete_buttton_list.on_click({
             let mut tree = tree.clone();
             let window = window.clone();
+            let mut count_info = count_info.clone();
             move |_| {
                 // -- Deselect root element for prevent in delete it accidentally
                 let mut root_element = tree.root().unwrap();
@@ -369,21 +421,29 @@ impl LoadElement {
                 let selected_items = tree.get_selected_items();
                 match selected_items {
                     Some(items) => {
-                        let choice: i32 = dialog::choice(window.width() / 2, 10, "Are sure to delete selected elements from links list?", "Yes", "No", ""); // value 1 = No, value 2 = Yes, value 3 = isn't presented
+                        let selected_items_count = items.len();
+                        let choice: i32 = dialog::choice(window.width() / 2, 10, &format!("Are sure to delete selected elements from links list ({} elements)?", selected_items_count), "Yes", "No", ""); // value 1 = No, value 2 = Yes, value 3 = isn't presented
                         println!("{}", choice);
                         if choice == 0 { // only when user click on "Yes" button elements will be remove
-                            for item in items {
+                            let mut removed: bool = false; // Elements are removed? -> Status Yes or No
+                            for item in &items {
                                 let remove = tree.remove(&item);
                                 match remove {
                                     Ok(_) => {
+                                        removed = true;
                                         tree.redraw(); // load changes to the list
-                                        // TODO: update elements count in container amount + info about how many elements has been deleted
+                                        ContainerForLinks::update_elements_count(&mut count_info, ActionType::Delete, items.len().to_string().parse::<i32>().unwrap()); // remove x count of elements from the count info
                                     },
                                     Err(err) => {
                                         let _alert = dialog::alert(window.width() / 2, 10, &format!("Program coudn't delete selected elements from this reason: {}", err.to_string()));
                                     }
                                 };
                             };
+                            
+                            // When elements has been succesfull removed from the container is displayed alert inform user about succesfull action
+                            if removed {
+                                dialog::message(window.width() / 2, 10,&format!("Deleted {} links from the list!!!", selected_items_count)); // infor about deleted elements count
+                            }
                         }
                     },
                     None => {
