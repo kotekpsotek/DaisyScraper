@@ -186,7 +186,7 @@ impl LoadElement {
     }
 
     // Create Search Bar placed on top
-    fn create_search_bar(window: &mut Window, set: &config::Setting, mut links_list: ContainerForLinks) {
+    fn create_search_bar(window: &mut Window, set: &config::Setting, links_list: ContainerForLinks) {
         // Container for Bar Elements
         let mut fl_container = Flex::default()
             .with_size(650, 55)
@@ -320,8 +320,8 @@ impl LoadElement {
             let search_input = search_input.clone();
             let mut last_crl_pressed: bool = false;
 
-            move |wn, ev| {
-                if let Event::KeyDown = ev {
+            move |_wn, ev| {
+                if let Event::KeyUp = ev {
                     let key = fltk::app::event_key();
                     let text = fltk::app::event_text();
                     if let Key::Enter = key { // When user click enter key the words will be download from web-pages
