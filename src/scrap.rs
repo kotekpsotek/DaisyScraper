@@ -99,7 +99,7 @@ fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>))
     }
 }
 
-pub async fn scrap_from(urls_from_arg: Vec<&str>)
+pub async fn scrap_from(urls_from_arg: Vec<String>)
 {
     let mut joinhandle_process_vec = Vec::<JoinHandle<()>>::new();
 

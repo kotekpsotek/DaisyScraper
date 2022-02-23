@@ -1,6 +1,4 @@
-use core::panic;
-
-use crate::config::default::Setting;
+use crate::{ scrap::scrap_from, config::default::Setting};
 
 use super::config::default as config;
 use fltk::window::DoubleWindow;
@@ -8,7 +6,7 @@ use fltk::window::DoubleWindow;
 use fltk::{
     self,
     button::Button,
-    enums::{Align, Color, Cursor, Font, FrameType},
+    enums::{Align, Color, Cursor, Font, FrameType, Event, Key },
     frame::Frame,
     image::SvgImage,
     input::Input,
@@ -114,6 +112,32 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
 
         let label_text = format!("Elements Count: {}", new_count);
         label.set_label(&label_text);
+    }
+
+    // return the value from elements which are in links list
+    fn links_container_get_values(&self) -> Result<Vec<String>, &'static str> {
+        if let Some(vals) = self.src.get_items() {
+            let mut returned_vec = Vec::<String>::new();
+            for item in vals {
+                if let Some(val) = item.label() {
+                    if val != self.src.root().unwrap().label().unwrap() { // when item value isn't the same value as root label value
+                        let val = val.replace("\\", "/");
+                        returned_vec.push(val);
+                    }
+                };
+                // in onther hand when value coudn't be getted nothing has been doed and loop go to next iteration
+            };
+
+            if returned_vec.len() > 0 {
+                Ok(returned_vec)
+            }
+            else {
+                Err("the vector which should be returned is empty (doesn't have any values because program coudn't get values)")
+            }
+        }
+        else {
+            Err("links container hasn't got any links inside")
+        }
     }
 } 
 
@@ -226,7 +250,6 @@ impl LoadElement {
             // When user click on "Start Typing" button
             let mut search_input = search_input.clone();
             move |btn| {
-                println!("Test 123");
                 search_input_interaction_action(&mut search_input); //
                 btn.clear_visible_focus();
                 search_input.take_focus().unwrap();
@@ -239,6 +262,7 @@ impl LoadElement {
             let mut search_input = search_input.clone();
             let set = crate::config::default::Setting::app_default(); // TODO: this is only temporary solution so i must replace that or all sharing settin between functions patern
             let window = window.clone();
+            let mut links_list = links_list.clone();
 
             move |_btn| {
                 if search_input.value().trim().len() > 0
@@ -251,25 +275,77 @@ impl LoadElement {
             }
         });
 
-        // -- Button: Start Scrap words from url to scrap list or input when scrap words list is empty
-        scrap_words_btn_listener.on_click({
+        // -- Button: Scrap Words
+        scrap_words_btn_listener.on_click({ // When user click on button "Scrap Words"
+            let links_list = links_list.clone();
             let search_input = search_input.clone();
-            move |_btn| {
-                let mut search_vec = Vec::<&str>::new(); // vec which is sending to search function
+            move |_| {
+                let mut links_list = links_list.clone();
+                let search_input = search_input.clone();
+                tokio::spawn(async move { // start scrap words (this must be in tokio block because scrap words is async function)
+                    scrap_words(&mut links_list, &search_input).await;
+                });
+            }
+        });
 
-                // Add value from input to search_vec
-                if search_input.value().trim().len() > 0 {
-                    let b_ = search_input.value();
-                    let search_input_vec = b_.trim().split(" ").collect::<Vec<&str>>();
-                    for url in search_input_vec {
-                        if url.starts_with("https://") || url.starts_with("http://") {
-                            search_vec.push(url);
-                        };
+        // -- Button: Start Scrap words from url to scrap list or input when scrap words list is empty
+        async fn scrap_words(link_list: &mut ContainerForLinks, search_input: &Input) { // starts scrap words from pages based on added links
+            let mut search_vec = Vec::<String>::new(); // vec which is sending to search function
+
+            // Add value from input to search_vec
+            if search_input.value().trim().len() > 0 {
+                let b_ = search_input.value();
+                let search_input_vec = b_.trim().split(" ").collect::<Vec<&str>>();
+                for url in search_input_vec {
+                    if url.starts_with("https://") || url.starts_with("http://") {
+                        search_vec.push(url.to_string());
+                    };
+                }
+            };
+
+            // Add values from links list to vec with links list
+            if let Ok(links_values) = link_list.links_container_get_values() {
+                for url in links_values {
+                    search_vec.push(url)
+                }
+            };
+
+            // TODO: Search words using search function
+            println!("{:?}", search_vec);
+            scrap_from(search_vec).await;
+        }
+
+        // -- Keyboard events
+        window.handle({
+            let search_input = search_input.clone();
+            let mut last_crl_pressed: bool = false;
+
+            move |wn, ev| {
+                if let Event::KeyDown = ev {
+                    let key = fltk::app::event_key();
+                    let text = fltk::app::event_text();
+                    if let Key::Enter = key { // When user click enter key the words will be download from web-pages
+                        let mut links_list = links_list.clone();
+                        let search_input = search_input.clone();
+                        
+                        tokio::spawn(async move { // start scrap words (this must be in tokio block because scrap words is async function)
+                            scrap_words(&mut links_list, &search_input).await;
+                        });
                     }
-                };
-
-                // TODO: (when list will be created) Add URLs from list to search_vec
-                // TODO: Search words function which is outside function
+                    else if let Key::ControlL = key {
+                        last_crl_pressed = true
+                    }
+                    else if last_crl_pressed {
+                        if text == "a" { // add putted in input element links to the links container
+                            // add_link_to_link_list_btn.cl
+                        };
+                        last_crl_pressed = false
+                    };
+                    true
+                }
+                else {
+                    false
+                }
             }
         });
 
