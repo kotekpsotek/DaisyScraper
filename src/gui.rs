@@ -317,13 +317,16 @@ impl LoadElement {
 
         // -- Keyboard events
         window.handle({
-            let search_input = search_input.clone();
+            let mut links_list = links_list.clone();
+            let mut search_input = search_input.clone();
             let mut last_crl_pressed: bool = false;
+            let window = window.clone();            
 
             move |_wn, ev| {
-                if let Event::KeyUp = ev {
-                    let key = fltk::app::event_key();
-                    let text = fltk::app::event_text();
+                let key = fltk::app::event_key();
+                let text = fltk::app::event_text();
+
+                if let Event::KeyUp = ev { // when user release the button 
                     if let Key::Enter = key { // When user click enter key the words will be download from web-pages
                         let mut links_list = links_list.clone();
                         let search_input = search_input.clone();
@@ -331,13 +334,17 @@ impl LoadElement {
                         tokio::spawn(async move { // start scrap words (this must be in tokio block because scrap words is async function)
                             scrap_words(&mut links_list, &search_input).await;
                         });
-                    }
-                    else if let Key::ControlL = key {
+                    };
+                    true
+                }
+                else if let Event::KeyDown = ev { // when user click button only
+                    if let Key::ControlL = key { // when user click LControl he have got autorizxation for using ctrl + other_key actions
                         last_crl_pressed = true
-                    }
+                    } 
                     else if last_crl_pressed {
-                        if text == "a" { // add putted in input element links to the links container
-                            // add_link_to_link_list_btn.cl
+                        match text.as_str() { // Do specific actions for specific clicked keys 
+                            "a" => links_list.update_list(search_input.value().split(" ").collect::<Vec<&str>>(), &Setting::app_default(), window.clone(), &mut search_input), // links list: Add new elements to the links  // add putted in input element links to the links container
+                            _ => ()
                         };
                         last_crl_pressed = false
                     };
