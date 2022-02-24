@@ -40,7 +40,7 @@ mod Test {
     use crate::config::additional;
     #[test]
     fn load_flags_from_file_test() {
-        let mut flags = additional::Features::get_flags_data_from_words_files().unwrap();
+        let mut _flags = additional::Features::get_flags_data_from_words_files().unwrap();
         /* let specified_element = flags.get_element_from_index(0);
         let port = specified_element.value.2.unwrap();
         println!("{}", port); */

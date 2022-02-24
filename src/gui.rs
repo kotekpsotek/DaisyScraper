@@ -181,6 +181,33 @@ impl LoadElement {
         f_con.set_size(&mut search_btn, btn_size); // width: of the button
         f_con.set_size(&mut menu_btn, btn_size); // width: of the button
 
+        // Event Handling section
+        let mut search_btn_listen: Listener<_> = search_btn.into();
+        let mut menu_btn_listen: Listener<_> = menu_btn.into();
+        let both_hover = |btn: &mut Button| {
+            btn.set_color(btn.color().lighter());
+            draw::set_cursor(Cursor::Hand);
+        };
+        let both_leave = {
+            let def_color_button = set.fr_elements_top_bar_background_color;
+            move |btn: &mut Button| {
+                btn.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
+            }
+        };
+
+        // -- Button: Search
+        search_btn_listen.on_hover(both_hover);
+        search_btn_listen.on_leave(both_leave);
+
+        search_btn_listen.on_click(|_| {}); // TODO: Add click on button listener handler here
+
+        // -- Button: Menu
+        menu_btn_listen.on_hover(both_hover);
+        menu_btn_listen.on_leave(both_leave);
+
+        menu_btn_listen.on_click(|_| {}); // TODO: Add click on button listener handler here
+
         // Add changes from code
         f_con.end();
     }
@@ -236,6 +263,18 @@ impl LoadElement {
                 r#in.take_focus().unwrap();
             };
         };
+        let both_hover = |btn: &mut Button| {
+            btn.set_color(btn.color().lighter());
+            draw::set_cursor(Cursor::Hand);
+        };
+        let both_leave = {
+            let def_color_button = set.fr_elements_top_bar_background_color;
+            move |btn: &mut Button| {
+                btn.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
+            }
+        };
+
         // -- Input: Add Urls listener for events
         search_input_listener.on_click(search_input_interaction_action.clone()); // When user click on Input element
         search_input_listener.on_unfocus(|r#in: &mut Input| {
@@ -246,6 +285,9 @@ impl LoadElement {
         });
 
         // -- Button: Start Typing listeners
+        foucus_on_search_btn_listener.on_hover(both_hover);
+        foucus_on_search_btn_listener.on_leave(both_leave);
+        
         foucus_on_search_btn_listener.on_click({
             // When user click on "Start Typing" button
             let mut search_input = search_input.clone();
@@ -257,6 +299,9 @@ impl LoadElement {
         });
 
         // -- Button: Add Links To List
+        add_link_to_list_listener.on_hover(both_hover);
+        add_link_to_list_listener.on_leave(both_leave);
+
         add_link_to_list_listener.on_click({
             // add urls to url list // TODO: urls must be reall add to url list
             let mut search_input = search_input.clone();
@@ -276,6 +321,9 @@ impl LoadElement {
         });
 
         // -- Button: Scrap Words
+        scrap_words_btn_listener.on_hover(both_hover);
+        scrap_words_btn_listener.on_leave(both_leave);
+        
         scrap_words_btn_listener.on_click({ // When user click on button "Scrap Words"
             let links_list = links_list.clone();
             let search_input = search_input.clone();
@@ -570,7 +618,7 @@ impl LoadElement {
         if let Some(v) = additional_elements.color {
             elem.set_color(Color::from_rgb(v.0, v.1, v.2));
         }
-        elem.set_frame(widget_themes::OS_SPACER_THIN_DOWN_BOX);
+        elem.set_frame(FrameType::BorderBox);
         // Set specific style for element based on elem_type parameter which represent the real type of elem
         match elem_type {
             ElementType::Button => {
