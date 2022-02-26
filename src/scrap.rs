@@ -11,6 +11,7 @@ use tokio::{self, task::JoinHandle};
 use regex::Regex;
 use reqwest;
 use scraper::{Html, Selector};
+#[allow(unused_imports)]
 use fltk::{
     app,
     window::Window,
@@ -106,7 +107,7 @@ fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>))
     }
 }
 
-pub async fn scrap_from(urls_from_arg: Vec<String>, gui_params: Option<(fltk::misc::Progress, fltk::frame::Frame, fltk::frame::Frame, fltk::window::DoubleWindow)>)
+pub async fn scrap_from(urls_from_arg: Vec<String>, gui_params: Option<(fltk::misc::Progress, fltk::frame::Frame, fltk::frame::Frame, fltk::window::DoubleWindow)>, gui_links: Option<( crate::gui::ContainerForLinks, fltk::input::Input)>)
 {
     // GUI: Function which handle showing infromation about how many sets of words coudn't be scraped from webpages
     fn cant_download_from(urls_from_arg_len: usize, gui_params: &Option<(fltk::misc::Progress, fltk::frame::Frame, fltk::frame::Frame, fltk::window::DoubleWindow)>) {
@@ -328,7 +329,7 @@ pub async fn scrap_from(urls_from_arg: Vec<String>, gui_params: Option<(fltk::mi
             _ => {
                 // GUI: Update the progress bar sate values after when progress bar was created
                 if let Some(data) = gui_params.clone() {
-                    let (mut progress, mut frame,  mut cant_download_from, _) = data;
+                    let (mut progress, mut frame,  _, _) = data;
                     // Update progress bar state
                     let actual_value = progress.value() as usize + 1;
                     progress.set_value(actual_value as f64);
@@ -342,6 +343,25 @@ pub async fn scrap_from(urls_from_arg: Vec<String>, gui_params: Option<(fltk::mi
                         .parse::<usize>()
                         .unwrap() + 1;
                     frame.set_label(&format!("{new}/{all}", new = updated_value, all = val_sp[1]));
+
+                    // Delete links from input and links container when all links has been donloaded
+                    if val_sp[1].clone().parse::<usize>().unwrap() == urls_from_arg.len() {
+                        let (mut links_list, mut input) = gui_links.clone().unwrap();
+                        // Clear Input
+                        input.set_value("");
+                        // Clear list
+                        if let Some(items_list) = links_list.src.root().unwrap().tree().unwrap().get_items() {
+                            for item in items_list {
+                                let rem_ac = links_list.src.root().unwrap().remove_child(item.label().unwrap().as_str());
+                                if let Err(_) = rem_ac {
+                                    ()
+                                }
+                                else {
+                                    links_list.src.redraw(); // reload the function
+                                };
+                            };
+                        };
+                    };
                 };
                 continue;
             }

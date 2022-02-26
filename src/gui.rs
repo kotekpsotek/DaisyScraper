@@ -44,8 +44,8 @@ struct TransferredStyleData {
 }
 
 #[derive(Debug, Clone)]
-struct ContainerForLinks { // Struct for Scroll container which is add here in LoadElement::create_search_frame method
-    src: fltk::tree::Tree,
+pub struct ContainerForLinks { // Struct for Scroll container which is add here in LoadElement::create_search_frame method
+    pub src: fltk::tree::Tree,
     elements_in_count: Frame
 }
 
@@ -390,7 +390,7 @@ impl LoadElement {
             };
 
             // Scrap words and show scrap progress bar
-            scrap_from(search_vec, Some(gui_params.clone())).await;
+            scrap_from(search_vec, Some(gui_params.clone()), Some((link_list.clone(), search_input.clone()))).await;
         }
 
         // -- Keyboard events
