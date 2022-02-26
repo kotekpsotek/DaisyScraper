@@ -190,7 +190,7 @@ impl LoadElement {
             draw::set_cursor(Cursor::Hand);
         };
         let both_leave = {
-            let def_color_button = set.fr_elements_top_bar_background_color;
+            let def_color_button = set.fr_element_background_color;
             move |btn: &mut Button| {
                 btn.set_color(def_color_button);
                 draw::set_cursor(Cursor::Default);
@@ -264,17 +264,6 @@ impl LoadElement {
                 r#in.take_focus().unwrap();
             };
         };
-        let both_hover = |btn: &mut Button| {
-            btn.set_color(btn.color().lighter());
-            draw::set_cursor(Cursor::Hand);
-        };
-        let both_leave = {
-            let def_color_button = set.fr_elements_top_bar_background_color;
-            move |btn: &mut Button| {
-                btn.set_color(def_color_button);
-                draw::set_cursor(Cursor::Default);
-            }
-        };
 
         // -- Input: Add Urls listener for events
         search_input_listener.on_click(search_input_interaction_action.clone()); // When user click on Input element
@@ -286,9 +275,6 @@ impl LoadElement {
         });
 
         // -- Button: Start Typing listeners
-        foucus_on_search_btn_listener.on_hover(both_hover);
-        foucus_on_search_btn_listener.on_leave(both_leave);
-        
         foucus_on_search_btn_listener.on_click({
             // When user click on "Start Typing" button
             let mut search_input = search_input.clone();
@@ -300,9 +286,6 @@ impl LoadElement {
         });
 
         // -- Button: Add Links To List
-        add_link_to_list_listener.on_hover(both_hover);
-        add_link_to_list_listener.on_leave(both_leave);
-
         add_link_to_list_listener.on_click({
             // add urls to url list // TODO: urls must be reall add to url list
             let mut search_input = search_input.clone();
@@ -320,10 +303,6 @@ impl LoadElement {
                 };
             }
         });
-
-        // -- Button: Scrap Words
-        scrap_words_btn_listener.on_hover(both_hover);
-        scrap_words_btn_listener.on_leave(both_leave);
         
         // !!! Function which initialize download words from GUI
         fn show_window_and_scrap_words(links_list: &ContainerForLinks, search_input: &Input) {
@@ -473,6 +452,25 @@ impl LoadElement {
                 label: Some("Scrap Words"),
             },
         );
+
+        //
+        let both_hover = |btn: &mut Button| {
+            btn.set_color(btn.color().lighter());
+            draw::set_cursor(Cursor::Hand);
+        };
+        let both_leave = {
+            let def_color_button = set.fr_element_background_color;
+            move |btn: &mut Button| {
+                btn.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
+            }
+        };
+        scrap_words_btn_listener.on_hover(both_hover);
+        scrap_words_btn_listener.on_leave(both_leave);
+        foucus_on_search_btn_listener.on_hover(both_hover);
+        foucus_on_search_btn_listener.on_leave(both_leave);
+        add_link_to_list_listener.on_hover(both_hover);
+        add_link_to_list_listener.on_leave(both_leave);
 
         // Set size of all elements in flex
         fl_container.set_size(&mut foucus_on_search_btn, 100); // Button: focus
