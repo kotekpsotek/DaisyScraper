@@ -26,7 +26,7 @@ async fn main() {
 
     if app.is_present("url") {
         let urls_from_arg = app.values_of("url").unwrap().collect::<Vec<&str>>().iter().map(|val| val.to_string()).collect(); // get all added url from command line interface (CLI)
-        scrap_from(urls_from_arg).await;
+        scrap_from(urls_from_arg, None).await;
     } else {
         // Launch GUI
         // GUI library: FLTK, GLK

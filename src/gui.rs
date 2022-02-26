@@ -1,7 +1,6 @@
 use crate::{ scrap::scrap_from, config::default::Setting};
 
 use super::config::default as config;
-use fltk::window::DoubleWindow;
 #[allow(unused_imports)]
 use fltk::{
     self,
@@ -11,10 +10,12 @@ use fltk::{
     image::SvgImage,
     input::Input,
     prelude::*,
-    window::Window,
+    window::{ Window, DoubleWindow },
     draw,
     tree::{ Tree, TreeItem },
-    dialog
+    dialog,
+    misc::Progress,
+    group
 }; // GUI Library: Fast Light ToolKit
 use fltk_evented::Listener;
 use fltk_flex::Flex;
@@ -324,20 +325,71 @@ impl LoadElement {
         scrap_words_btn_listener.on_hover(both_hover);
         scrap_words_btn_listener.on_leave(both_leave);
         
+        // !!! Function which initialize download words from GUI
+        fn show_window_and_scrap_words(links_list: &ContainerForLinks, search_input: &Input) {
+            let mut links_list = links_list.clone();
+            let (screen_width, screen_height) = fltk::app::screen_size();
+            let search_input = search_input.clone();
+
+            // Links from Input Container
+            let mut base_he = if search_input.value().trim().len() > 0 {
+                // Process the value
+                let res = Vec::from_iter(search_input.value().trim().split(" ").collect::<Vec<&str>>().iter().map(|val| {
+                    let val = val.trim();
+                    if val.starts_with("https://") || val.starts_with("http://") {
+                        val.to_string()
+                    }
+                    else {
+                        String::new()
+                    }
+                }));
+                
+                // Return value
+                if res.join(" ").trim().len() > 0 {
+                    res
+                }
+                else {
+                    Vec::<String>::new()
+                }
+            }
+            else {
+                Vec::<String>::new()
+            };
+            // Links from Container for other links
+            let mut urls_count = if let Ok(vec) = links_list.links_container_get_values() {
+                vec
+            }
+            else {
+                Vec::<String>::new()
+            };
+            urls_count.append(&mut base_he);
+            
+            // When URLs have been added
+            if urls_count.len() > 0 {
+                let mut wn = DoubleWindow::new(0, 0, 700, 250, "Scrap words progress");
+                wn.set_pos((screen_width as i32 - 700) / 2, (screen_height as i32 - 250) / 2);
+
+                tokio::spawn({
+                    let data = LoadElement::create_progress_frame(wn.clone()); // create scrap words progress window 
+                    async move { // start scrap words (this must be in tokio block because scrap words is async function)
+                        scrap_words(&mut links_list, &search_input, data).await;
+                    }
+                });
+                wn.end();
+                wn.show();
+            };
+        }
+
         scrap_words_btn_listener.on_click({ // When user click on button "Scrap Words"
             let links_list = links_list.clone();
             let search_input = search_input.clone();
             move |_| {
-                let mut links_list = links_list.clone();
-                let search_input = search_input.clone();
-                tokio::spawn(async move { // start scrap words (this must be in tokio block because scrap words is async function)
-                    scrap_words(&mut links_list, &search_input).await;
-                });
+                show_window_and_scrap_words(&links_list, &search_input); // initialize download words from webpages
             }
         });
 
         // -- Button: Start Scrap words from url to scrap list or input when scrap words list is empty
-        async fn scrap_words(link_list: &mut ContainerForLinks, search_input: &Input) { // starts scrap words from pages based on added links
+        async fn scrap_words(link_list: &mut ContainerForLinks, search_input: &Input, gui_params: (Progress, Frame, Frame, DoubleWindow)) { // starts scrap words from pages based on added links
             let mut search_vec = Vec::<String>::new(); // vec which is sending to search function
 
             // Add value from input to search_vec
@@ -358,9 +410,8 @@ impl LoadElement {
                 }
             };
 
-            // TODO: Search words using search function
-            println!("{:?}", search_vec);
-            scrap_from(search_vec).await;
+            // Scrap words and show scrap progress bar
+            scrap_from(search_vec, Some(gui_params.clone())).await;
         }
 
         // -- Keyboard events
@@ -376,12 +427,7 @@ impl LoadElement {
 
                 if let Event::KeyUp = ev { // when user release the button 
                     if let Key::Enter = key { // When user click enter key the words will be download from web-pages
-                        let mut links_list = links_list.clone();
-                        let search_input = search_input.clone();
-                        
-                        tokio::spawn(async move { // start scrap words (this must be in tokio block because scrap words is async function)
-                            scrap_words(&mut links_list, &search_input).await;
-                        });
+                        show_window_and_scrap_words(&links_list, &search_input); // initialize download words from webpages
                     };
                     true
                 }
@@ -633,6 +679,30 @@ impl LoadElement {
             }
             _ => (),
         };
+    }
+
+    fn create_progress_frame(wn: DoubleWindow) -> (Progress, Frame, Frame, DoubleWindow) {
+        let window_size = (wn.width(), wn.height());
+        // Style of the progress bar window
+        let mut info_title = Frame::new((window_size.0 - 500) / 2, (window_size.1 - (35 + 45)) / 2, 500, 20, "");
+        info_title.set_label("Scrap words progress...");
+        info_title.set_label_font(Font::Courier);
+        info_title.set_align(Align::Left | Align::Inside);
+        info_title.set_label_size(18);
+        let mut progress_bar = Progress::new((window_size.0 - 500) / 2, (window_size.1 - 35) / 2, 500, 35, "");
+        progress_bar.set_selection_color(Color::DarkGreen);
+        let mut info_downloaded_success = Frame::new((window_size.0 - 500) / 2, (window_size.1 + 35) / 2, 500, 20, "");
+        info_downloaded_success.set_label("0/0");
+        info_downloaded_success.set_label_font(Font::Courier);
+        info_downloaded_success.set_align(Align::Right | Align::Inside);
+        let mut info_cant_download_from = Frame::new((window_size.0 - 500) / 2, (window_size.1 + 65) / 2, 500, 20, "");
+        info_cant_download_from.set_label("Can't download words from: 0 pages");
+        info_cant_download_from.set_label_color(Color::Red);
+        info_cant_download_from.set_label_font(Font::Courier);
+        info_cant_download_from.set_align(Align::Right | Align::Inside);
+        info_cant_download_from.hide();
+
+        (progress_bar, info_downloaded_success, info_cant_download_from, wn)
     }
 }
 

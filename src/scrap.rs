@@ -1,14 +1,21 @@
 use chrono::offset::*;
+use fltk::prelude::WidgetExt;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::{ Mutex, Arc },
 };
 use tokio::{self, task::JoinHandle};
 use regex::Regex;
 use reqwest;
 use scraper::{Html, Selector};
+use fltk::{
+    app,
+    window::Window,
+    prelude::*
+};
 
 #[derive(Serialize, Deserialize)]
 struct JsonDocument {
@@ -99,9 +106,33 @@ fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>))
     }
 }
 
-pub async fn scrap_from(urls_from_arg: Vec<String>)
+pub async fn scrap_from(urls_from_arg: Vec<String>, gui_params: Option<(fltk::misc::Progress, fltk::frame::Frame, fltk::frame::Frame, fltk::window::DoubleWindow)>)
 {
+    // GUI: Function which handle showing infromation about how many sets of words coudn't be scraped from webpages
+    fn cant_download_from(urls_from_arg_len: usize, gui_params: &Option<(fltk::misc::Progress, fltk::frame::Frame, fltk::frame::Frame, fltk::window::DoubleWindow)>) {
+        if let Some((_, _, error_frame, _)) = gui_params {
+            // When this information isn't visible code blaced in this brackets show this information
+            if !error_frame.visible() {
+                error_frame.clone().show();
+            }
+
+            // Update Count of the Pages from which words cound't be downloaded
+            let mut error_frame = error_frame.clone();
+            let label = error_frame.label();
+            let error_frame_value = label.split(":").collect::<Vec<&str>>()[1];
+            let regex_res = Regex::new(r"\d")
+                .unwrap()
+                .find(error_frame_value)
+                .unwrap()
+                .as_str()
+                .parse::<usize>()
+                .unwrap();
+            error_frame.set_label(&format!("Can't download words from: {num}/{all_pages} pages", num = regex_res + 1, all_pages = urls_from_arg_len));
+        };
+    }
+
     let mut joinhandle_process_vec = Vec::<JoinHandle<()>>::new();
+    let saved_links: Arc<Mutex<usize>> = Arc::new(Mutex::new(0)); // successed saved words from added links by user, ready for share between threads
 
     // Iterate over added urls and go to them
     for url_from_arg in &urls_from_arg {
@@ -110,44 +141,48 @@ pub async fn scrap_from(urls_from_arg: Vec<String>)
             .unwrap()
             .replace_all(url_from_arg, "/")
             .to_string();
-        let process_for_url = tokio::spawn(async move {
-            match url_from_arg.find("//") {
-                Some(byte_id) => {
-                    let protocol_ = &url_from_arg[..byte_id + 2]; // select protocol which is used to connect with added url
-                    let mut url_without_protocol = url_from_arg.replace(protocol_, ""); // url without protocol section for better error showing in error arms
-                    if protocol_ == "https://" || protocol_ == "http://" {
-                        let request = reqwest::get(&url_from_arg).await;
-                        match request
-                        {
-                            Ok(res) => 
+        let saved_links_clone = Arc::clone(&saved_links);
+        let process_for_url = tokio::spawn({
+            let gui_params = gui_params.clone();
+            let urls_from_arg_len = urls_from_arg.len();
+            async move {
+                match url_from_arg.find("//") {
+                    Some(byte_id) => {
+                        let protocol_ = &url_from_arg[..byte_id + 2]; // select protocol which is used to connect with added url
+                        let mut url_without_protocol = url_from_arg.replace(protocol_, ""); // url without protocol section for better error showing in error arms
+                        if protocol_ == "https://" || protocol_ == "http://" {
+                            let request = reqwest::get(&url_from_arg).await;
+                            match request
                             {
-                                let status_base = res.status();
-                                let status_code = status_base.as_u16();
-                                let status_code_txt = status_base.canonical_reason();
-                                if status_code >= 200 &&  status_code < 400
-                                { // when result of response is good
-                                    // Response HTTP data
-                                    let _res_headers = res.headers();
-                                    let response_url = res.url().to_string();
-                                    let resonse_text = res.text().await.unwrap();
-            
-                                    // GET Text from body tag
-                                    let parse_document = Html::parse_document(resonse_text.as_str());
-                                    let selector = Selector::parse("body").expect("Program coudn't parse document <body></body> tag");
-                                    let body_vec = parse_document.select(&selector).next().unwrap().text().collect::<Vec<&str>>();
-            
-                                    // Format text to more redable form using regexp
-                                    let body_text = body_vec.join(" ");
-                                    let regex_replace_st1 = Regex::new(r"\W|\d").unwrap().replace_all(body_text.as_str(), " ").to_string(); // replace non word characters and digest
-                                    let regex_replace_st2 = Regex::new(r"\n(?s)|\s{2,}").unwrap().replace_all(regex_replace_st1.as_str(), "").to_string(); // replace \n words and \s which are 2 or more after itself
-            
-                                    // Format result text to vector
-                                    let words_vec = regex_replace_st2.split(" ").collect::<Vec<&str>>();
-            
-                                    // Convert data from vec to string and better parse these words
-                                    let mut string_vec: Vec<String> = Vec::new();
-                                    for s_w in words_vec
-                                    {
+                                Ok(res) => 
+                                {
+                                    let status_base = res.status();
+                                    let status_code = status_base.as_u16();
+                                    let status_code_txt = status_base.canonical_reason();
+                                    if status_code >= 200 &&  status_code < 400
+                                    { // when result of response is good
+                                        // Response HTTP data
+                                        let _res_headers = res.headers();
+                                        let response_url = res.url().to_string();
+                                        let resonse_text = res.text().await.unwrap();
+                                    
+                                        // GET Text from body tag
+                                        let parse_document = Html::parse_document(resonse_text.as_str());
+                                        let selector = Selector::parse("body").expect("Program coudn't parse document <body></body> tag");
+                                        let body_vec = parse_document.select(&selector).next().unwrap().text().collect::<Vec<&str>>();
+                                    
+                                        // Format text to more redable form using regexp
+                                        let body_text = body_vec.join(" ");
+                                        let regex_replace_st1 = Regex::new(r"\W|\d").unwrap().replace_all(body_text.as_str(), " ").to_string(); // replace non word characters and digest
+                                        let regex_replace_st2 = Regex::new(r"\n(?s)|\s{2,}").unwrap().replace_all(regex_replace_st1.as_str(), "").to_string(); // replace \n words and \s which are 2 or more after itself
+                                    
+                                        // Format result text to vector
+                                        let words_vec = regex_replace_st2.split(" ").collect::<Vec<&str>>();
+                                    
+                                        // Convert data from vec to string and better parse these words
+                                        let mut string_vec: Vec<String> = Vec::new();
+                                        for s_w in words_vec
+                                        {
                                         let val = s_w.to_string();
                                         let regex_check_capital_let = Regex::new("[A-Z]").unwrap();
                                         let regex_check_space = Regex::new(r"\s").unwrap();
@@ -197,62 +232,83 @@ pub async fn scrap_from(urls_from_arg: Vec<String>)
                                             // when word hasn't got any capital letters in his body
                                             string_vec.push(val);
                                         };
-                                    };
-            
-                                    // TODO: Check if this action shoudn't be in better place
-                                    // Prepare url to be saved correctly (remove dangerous characters like "/" on the end of url)
-                                    let url_without_protocol = if url_without_protocol.ends_with("/") {
-                                        url_without_protocol.pop();
-                                        url_without_protocol
-                                    }
-                                    else {
-                                        url_without_protocol
-                                    };
-
-                                    // Port of the URL
-                                    let regex_port = Regex::new(r":\d{1,}").unwrap();
-                                    let port = if let Some(port) = regex_port.find(&url_without_protocol) {
-                                        Some(port.as_str().replace(":", "").to_string())
-                                    }   
-                                    else
-                                    {
-                                        None
-                                    };
-
-                                    // Remove Port from the default URL
-                                    let url_without_protocol = regex_port.replace(&url_without_protocol, "").to_string();
+                                        };
                                     
+                                        // Prepare url to be saved correctly (remove dangerous characters like "/" on the end of url)
+                                        let url_without_protocol = if url_without_protocol.ends_with("/") {
+                                            url_without_protocol.pop();
+                                            url_without_protocol
+                                        }
+                                        else {
+                                            url_without_protocol
+                                        };
 
-                                    let save_result = save_words(string_vec, response_url, (protocol_.to_string(), url_without_protocol, port));
-                                    match save_result
-                                    {
-                                        Ok(_) => println!("Words has been saved!!!"),
-                                        Err(e) => panic!("{}", e)
-                                    };
+                                        // Port of the URL
+                                        let regex_port = Regex::new(r":\d{1,}").unwrap();
+                                        let port = if let Some(port) = regex_port.find(&url_without_protocol) {
+                                            Some(port.as_str().replace(":", "").to_string())
+                                        }   
+                                        else
+                                        {
+                                            None
+                                        };
+
+                                        // Remove Port from the default URL
+                                        let url_without_protocol = regex_port.replace(&url_without_protocol, "").to_string();
+
+
+                                        let save_result = save_words(string_vec, response_url, (protocol_.to_string(), url_without_protocol, port));
+                                        match save_result
+                                        {
+                                            Ok(_) => { 
+                                                println!("Words has been saved!!!");
+                                                *saved_links_clone.lock().unwrap() += 1; // increase number of success saved links
+                                            },
+                                            Err(e) => {
+                                                cant_download_from(urls_from_arg_len, &gui_params); // update number of pages from which program coudn't download links
+                                                panic!("{}", e)
+                                            }
+                                        };
+                                    }
+                                    else
+                                    { // result of request isn't good
+                                        let status_text_res: String = if let Some(code) = status_code_txt
+                                        {
+                                          code.to_string()
+                                        }
+                                        else
+                                        {
+                                          String::from("Code IS Unavaileble").to_uppercase()
+                                        };
+                                        println!("Program coudn't connect with given url from you. Reason:\n\n\tResponse HTTP status code: {code}\n\tResponse HTTP status text: {status_text}", code = status_code, status_text = status_text_res);
+                                    }
+                                },
+                                Err(err) => {
+                                    cant_download_from(urls_from_arg_len, &gui_params); // update number of pages from which program coudn't download links
+                                    println!("Program coudn't sent request to added addres by you ({url_name}). Error description:\n{err_desc}", err_desc = err.to_string(), url_name = url_without_protocol)
                                 }
-                                else
-                                { // result of request isn't good
-                                    let status_text_res: String = if let Some(code) = status_code_txt
-                                                                  {
-                                                                    code.to_string()
-                                                                  }
-                                                                  else
-                                                                  {
-                                                                    String::from("Code IS Unavaileble").to_uppercase()
-                                                                  };
-                                    println!("Program coudn't connect with given url from you. Reason:\n\n\tResponse HTTP status code: {code}\n\tResponse HTTP status text: {status_text}", code = status_code, status_text = status_text_res);
-                                }
-                            },
-                            Err(err) => println!("Program coudn't sent request to added addres by you ({url_name}). Error description:\n{err_desc}", err_desc = err.to_string(), url_name = url_without_protocol)
+                            };
+                        } else {
+                            cant_download_from(urls_from_arg_len, &gui_params); // update number of pages from which program coudn't download links
+                            println!("You add bad url construction for adress: {url_name}!!!\nUrl must starts with protocols http or https in this from \"https://{url_name}\" (\"https://target_domain.tld\") or \"http://{url_name}\" (\"http://target_domain.tld\")", url_name = url_without_protocol)
                         };
-                    } else {
-                        println!("You add bad url construction for adress: {url_name}!!!\nUrl must starts with protocols http or https in this from \"https://{url_name}\" (\"https://target_domain.tld\") or \"http://{url_name}\" (\"http://target_domain.tld\")", url_name = url_without_protocol)
-                    };
-                }
-                None => println!("You add bad adress url format for {}", url_from_arg),
-            };
+                    }
+                    None => {
+                        cant_download_from(urls_from_arg_len, &gui_params); // update number of pages from which program coudn't download links
+                        println!("You add bad adress url format for {}", url_from_arg)
+                    },
+                };
+            }
         });
         joinhandle_process_vec.push(process_for_url);
+    }
+    
+    // GUI: Set basic params for the progress bar element
+    if let Some((mut progress, mut frame, _, _)) = gui_params.clone() {
+        // Set maximum progress bar value
+        progress.set_maximum(urls_from_arg.len() as f64);
+        // Set lable value
+        frame.set_label(&format!("0/{}", urls_from_arg.len())); 
     }
 
     let mut url_for_task_num = 0;
@@ -263,12 +319,32 @@ pub async fn scrap_from(urls_from_arg: Vec<String>)
         url_for_task_num += 1;
         match result {
             Err(_) => {
+                cant_download_from(urls_from_arg.len(), &gui_params);
                 println!(
                     "Program coudn't fire task for url: {}",
                     urls_from_arg[url_for_task_num]
                 );
             }
-            _ => continue,
+            _ => {
+                // GUI: Update the progress bar sate values after when progress bar was created
+                if let Some(data) = gui_params.clone() {
+                    let (mut progress, mut frame,  mut cant_download_from, _) = data;
+                    // Update progress bar state
+                    let actual_value = progress.value() as usize + 1;
+                    progress.set_value(actual_value as f64);
+                    
+                    // Update progress bar download words count
+                    let bas = frame.label();
+                    let val_sp = bas
+                        .split("/")
+                        .collect::<Vec<&str>>();
+                    let updated_value = val_sp[0]
+                        .parse::<usize>()
+                        .unwrap() + 1;
+                    frame.set_label(&format!("{new}/{all}", new = updated_value, all = val_sp[1]));
+                };
+                continue;
+            }
         };
-    }
+    };
 }
