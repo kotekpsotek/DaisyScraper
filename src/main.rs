@@ -1,5 +1,6 @@
 mod gui; // GUI module
 mod scrap; // SCRAP module
+mod states; // APP STATES module
 mod config { // GUI config and Other configs
     pub mod default;
     pub mod additional; // additional functions for application
@@ -30,8 +31,7 @@ async fn main() {
     } else {
         // Launch GUI
         // GUI library: FLTK, GLK
-        println!("GUI application has been launched!!!");
-        gui::create(); // create GUI app
+        gui::create(gui::CreateElementCategoryType::Default); // create GUI app
     };
 }
 

@@ -19,6 +19,7 @@ use fltk::{
 }; // GUI Library: Fast Light ToolKit
 use fltk_evented::Listener;
 use fltk_flex::Flex;
+#[allow(unused_imports)]
 use fltk_theme::*;
 use regex::Regex;
 
@@ -142,21 +143,68 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
     }
 } 
 
+pub enum CreateElementCategoryType { // The type of window which should be created should because if you use "Deafult" element then Search window is creating by default
+    Default,
+    Search,
+    Menu
+}
+
+struct ElementsCategories;
+impl ElementsCategories {
+    fn create_search_words_from_links_elements(window: &mut Window, set: &config::Setting) { // create elements for searching links from webpages
+        // Create Top Bar
+        LoadElement::create_top_bar(&mut *window, &*set); // this must be the last because this bar have the functions for remove elements
+        // Create Frame
+        let container_for_links: ContainerForLinks = LoadElement::create_search_frame(&mut *window, &*set);
+        // Create Search Bar
+        LoadElement::create_search_bar(&mut *window, &*set, container_for_links.clone());
+    }
+
+    fn create_menu_elements(_window: &mut Window, _set: &config::Setting) { // TODO: Create Menu Elements for read saved data
+
+    }
+}
+
 struct LoadElement;
 impl LoadElement {
-    pub fn create(window: &mut Window, set: &config::Setting) {
+    pub fn create(window: &mut Window, set: &config::Setting, r#type: CreateElementCategoryType) {
         // from outside you should invoke only this function no any other function (this is simplier way to invoke the function)
         /* Order of creating elements and adding it to the guiL:
             1. Top Bar has been created,
             2. Frame has been created (this is for because element from frame should be returned to section where links are added to allow add links to the frame)
         */
-        
-        // Create Top Bar
-        Self::create_top_bar(&mut *window, &*set);
-        // Create Frame
-        let container_for_links: ContainerForLinks = Self::create_search_frame(&mut *window, &*set);
-        // Create Search Bar
-        Self::create_search_bar(&mut *window, &*set, container_for_links);
+        match r#type { // Open correct window type
+            CreateElementCategoryType::Default => { // open last opened window via user. It is using when program is starting displaing GUI
+                let last_opened_window = crate::states::which_widnow_was_opened_recently();
+                match last_opened_window {
+                    Ok(last_opened_window) => {
+                        match last_opened_window {
+                            crate::states::OpenedWindow::Menu => {
+                                crate::states::save_window_state(crate::states::OpenedWindow::Menu).unwrap(); // save/update APP STATE
+                                ElementsCategories::create_menu_elements(window, set);
+                            },
+                            crate::states::OpenedWindow::Search => {
+                                crate::states::save_window_state(crate::states::OpenedWindow::Search).unwrap(); // save/update APP STATE
+                                ElementsCategories::create_search_words_from_links_elements(window, set);
+                            }
+                        }
+                    },
+                    Err(_) => { // When is error program creates search words from links window
+                        crate::states::save_window_state(crate::states::OpenedWindow::Search).unwrap(); // save/update APP STATE
+                        ElementsCategories::create_search_words_from_links_elements(window, set);
+                    }
+                }
+            },
+            CreateElementCategoryType::Search => { // create Search Window
+                crate::states::save_window_state(crate::states::OpenedWindow::Search).unwrap(); // save/update APP STATE
+                ElementsCategories::create_search_words_from_links_elements(window, set);
+            },
+            CreateElementCategoryType::Menu => { // create menu GUI elements
+                crate::states::save_window_state(crate::states::OpenedWindow::Menu).unwrap(); // save/update APP STATE
+                ElementsCategories::create_menu_elements(window, set);
+            }
+            
+        }
     }
 
     // Create Top Bar
@@ -201,20 +249,34 @@ impl LoadElement {
         search_btn_listen.on_hover(both_hover);
         search_btn_listen.on_leave(both_leave);
 
-        search_btn_listen.on_click(|_| {}); // TODO: Add click on button listener handler here
-
         // -- Button: Menu
         menu_btn_listen.on_hover(both_hover);
         menu_btn_listen.on_leave(both_leave);
 
-        menu_btn_listen.on_click(|_| {}); // TODO: Add click on button listener handler here
+        // When user Click on "Search" button
+        search_btn_listen.on_click({
+            let mut window = window.clone();
+            move |_| {
+                window.hide(); // Remove now opened window
+                crate::gui::create(CreateElementCategoryType::Search); // Create New window
+            }
+        });
+
+        // When user Click on "Menu" button
+        menu_btn_listen.on_click({
+            let mut window = window.clone();
+            move |_| {
+                window.hide(); // Remove now opened window
+                crate::gui::create(CreateElementCategoryType::Menu); // Create New window
+            }
+        });
 
         // Add changes from code
         f_con.end();
     }
 
     // Create Search Bar placed on top
-    fn create_search_bar(window: &mut Window, set: &config::Setting, links_list: ContainerForLinks) {
+    fn create_search_bar(window: &mut Window, set: &config::Setting, links_list: ContainerForLinks) -> Vec<Flex> {
         // Container for Bar Elements
         let mut fl_container = Flex::default()
             .with_size(650, 55)
@@ -480,6 +542,9 @@ impl LoadElement {
 
         // Load changes to flex box
         fl_container.end();
+
+        // Return Values From Function
+        return vec![fl_container];
     }
 
     // Create/Read/Update Search Frame -> this is a frame with searching url adresses
@@ -645,8 +710,6 @@ impl LoadElement {
         delete_buttton_list.on_hover(both_hover);
         delete_buttton_list.on_leave(both_leave);
 
-        // TODO: CRUD on created elements 
-
         container_for_links = ContainerForLinks { src: tree, elements_in_count: count_info };
         container_for_links
     }
@@ -704,7 +767,7 @@ impl LoadElement {
     }
 }
 
-pub fn create() {
+pub fn create(r#type: CreateElementCategoryType) {
     let app_ = fltk::app::App::default();
     let mut wn_ = fltk::window::Window::new(0, 0, 900, 900, "Daisy Scraper");
     let settings = config::Setting::app_default();
@@ -716,7 +779,7 @@ pub fn create() {
     wn_.set_color(settings.app_backround_color.clone());
 
     // Create Elements
-    LoadElement::create(&mut wn_, &settings); // create search GUI
+    LoadElement::create(&mut wn_, &settings, r#type); // create search GUI (when program is started then is created "Search" Window by default)
 
     wn_.end();
     wn_.show();
