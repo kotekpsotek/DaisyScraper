@@ -52,6 +52,7 @@ pub struct ContainerForLinks { // Struct for Scroll container which is add here 
 
 impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
     fn update_list(&mut self, added_element: Vec<&str>, settings: &Setting, window: DoubleWindow, input: &mut Input) { 
+        let screen_size = fltk::app::screen_size();
         for url in added_element { // Add Links to the Container
             if url.starts_with("https://") || url.starts_with("http://") {                
                 // When list is closed list becomes open now
@@ -78,10 +79,10 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
                     input.set_value("");
                 }
                 else {
-                    dialog::alert(window.width() / 2, 10, &format!("This URL: \"{}\" which is added to input field is already in the links list. The values which are in the list cound't be repeated multiple times. Links List allow only unique elements!!!", url));
+                    dialog::alert((screen_size.0 as i32 - 900) / 2, 10, &format!("This URL: \"{}\" which is added to input field is already in the links list. The values which are in the list cound't be repeated multiple times. Links List allow only unique elements!!!", url));
                 };
             } else { // When link starts without http:// | https:// 
-                dialog::alert(window.width() / 2, 10, &format!("The adding urls to the search field should starts with protocols http:// or https://. Your link \"{}\" should to begin with https:// or http:// protocol!!!", url));
+                dialog::alert((screen_size.0 as i32 - 900) / 2, 10, &format!("The adding urls to the search field should starts with protocols http:// or https://. Your link \"{}\" should to begin with https:// or http:// protocol!!!", url));
             };
         };
     }
@@ -659,10 +660,11 @@ impl LoadElement {
 
                 // -- Remove Selected Items
                 let selected_items = tree.get_selected_items();
+                let screen_size = fltk::app::screen_size();
                 match selected_items {
                     Some(items) => {
                         let selected_items_count = items.len();
-                        let choice: i32 = dialog::choice(window.width() / 2, 10, &format!("Are sure to delete selected elements from links list ({} elements)?", selected_items_count), "Yes", "No", ""); // value 1 = No, value 2 = Yes, value 3 = isn't presented
+                        let choice: i32 = dialog::choice((screen_size.0 as i32 - 900) / 2, 10, &format!("Are sure to delete selected elements from links list ({} elements)?", selected_items_count), "Yes", "No", ""); // value 1 = No, value 2 = Yes, value 3 = isn't presented
                         println!("{}", choice);
                         if choice == 0 { // only when user click on "Yes" button elements will be remove
                             let mut removed: bool = false; // Elements are removed? -> Status Yes or No
@@ -675,19 +677,19 @@ impl LoadElement {
                                         ContainerForLinks::update_elements_count(&mut count_info, ActionType::Delete, items.len().to_string().parse::<i32>().unwrap()); // remove x count of elements from the count info
                                     },
                                     Err(err) => {
-                                        let _alert = dialog::alert(window.width() / 2, 10, &format!("Program coudn't delete selected elements from this reason: {}", err.to_string()));
+                                        let _alert = dialog::alert((screen_size.0 as i32 - 900) / 2, 10, &format!("Program coudn't delete selected elements from this reason: {}", err.to_string()));
                                     }
                                 };
                             };
                             
                             // When elements has been succesfull removed from the container is displayed alert inform user about succesfull action
                             if removed {
-                                dialog::message(window.width() / 2, 10,&format!("Deleted {} links from the list!!!", selected_items_count)); // infor about deleted elements count
+                                dialog::message((screen_size.0 as i32 - 900) / 2, 10,&format!("Deleted {} links from the list!!!", selected_items_count)); // infor about deleted elements count
                             }
                         }
                     },
                     None => {
-                        let _alert = dialog::alert(window.width() / 2, 10, r#"No one element is selected. Click on element which you want delete or use "Select All" button to select all added elements!!!"#);
+                        let _alert = dialog::alert((screen_size.0 as i32 - 900) / 2, 10, r#"No one element is selected. Click on element which you want delete or use "Select All" button to select all added elements!!!"#);
                     }
                 }
             }
@@ -769,7 +771,8 @@ impl LoadElement {
 
 pub fn create(r#type: CreateElementCategoryType) {
     let app_ = fltk::app::App::default();
-    let mut wn_ = fltk::window::Window::new(0, 0, 900, 900, "Daisy Scraper");
+    let screen_size = fltk::app::screen_size();
+    let mut wn_ = fltk::window::Window::new((screen_size.0 as i32 - 900) / 2, (screen_size.1 as i32 - 900) / 2, 900, 900, "Daisy Scraper");
     let settings = config::Setting::app_default();
 
     // Set fonts for elements
