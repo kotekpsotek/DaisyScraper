@@ -44,6 +44,10 @@ fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, Option<
             .replace("://", "");
         let domain_for_flag = flags[it_count].1
             .clone();
+        let domain_for_flag = Regex::new(r"\\|/(?mi)")
+            .unwrap()
+            .replace_all(&domain_for_flag, "Xkd-=234s")
+            .to_string(); // "Xkd-=234s" is the separator using in paths
         let port = if let Some(val) = flags[it_count].2.clone() {
             val
         }
@@ -95,6 +99,7 @@ fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>))
         Ok(converted_val) => {
             // Save File
             let file_name: String = format!("{}.json", add_flags_to_file_name(format!("{}", time_now), flags_vec.clone()));
+            println!("{}", file_name);
             let path_to: PathBuf = Path::new(".")
                 .join(FOLDER_FILES_WITH_WORDS)
                 .join(file_name);
