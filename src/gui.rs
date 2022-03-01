@@ -161,8 +161,11 @@ impl ElementsCategories {
         LoadElement::create_search_bar(&mut *window, &*set, container_for_links.clone());
     }
 
-    fn create_menu_elements(_window: &mut Window, _set: &config::Setting) { // TODO: Create Menu Elements for read saved data
-
+    fn create_menu_elements(window: &mut Window, set: &config::Setting) { // TODO: Create Menu Elements for read saved data
+        // Create Top Bar
+        LoadElement::create_top_bar(&mut *window, &*set); // this must be the last because this bar have the functions for remove elements
+        // Create Search Bar
+        LoadElement::create_search_frame_menu(&mut *window, &*set);
     }
 }
 
@@ -276,7 +279,7 @@ impl LoadElement {
         f_con.end();
     }
 
-    // Create Search Bar placed on top
+    // Search: Create Search Bar placed on top
     fn create_search_bar(window: &mut Window, set: &config::Setting, links_list: ContainerForLinks) -> Vec<Flex> {
         // Container for Bar Elements
         let mut fl_container = Flex::default()
@@ -742,6 +745,54 @@ impl LoadElement {
             }
             _ => (),
         };
+    }
+
+    // Menu: Create Search Bar
+    fn create_search_frame_menu(window: &mut Window, set: &config::Setting) {
+        let window_w = window.width();
+        let x_localization = (window_w / 2) - (610 / 2) + 10;
+        let mut search_frame = Flex::new(x_localization , 120, 600, 55, "")
+            .row();
+
+        // Button: Start Typing
+        let mut foucus_on_search_btn = Button::default();
+        LoadElement::set_static_styles_for_buttons(foucus_on_search_btn.clone(), ElementType::Button, TransferredStyleData { icon: Some(SvgImage::load("svg/pointer.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "pointer" ("pointer.svg")"#)), color: Some(set.btn_element_background_color.to_rgb()), label: Some("Start Typing") });
+
+        // Input: Search Input
+        let label_txt: &'static str = "Put URL/URLs";
+        let mut search_input = Input::default();
+        search_input.set_value(label_txt);
+        search_input.set_text_color(set.element_font_color);
+        search_input.set_text_font(Font::Courier);
+        search_input.set_text_size(15);
+        LoadElement::set_static_styles_for_buttons(
+            search_input.clone(),
+            ElementType::Input,
+            TransferredStyleData {
+                icon: None,
+                color: Some(set.inp_element_background_color.to_rgb()),
+                label: None,
+            },
+        );
+
+        // Button: Search
+        let mut start_search_words_btn = Button::default();
+        LoadElement::set_static_styles_for_buttons(
+            start_search_words_btn.clone(),
+            ElementType::Button,
+            TransferredStyleData {
+                icon: Some(
+                    SvgImage::load("svg/send-icon.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "send-icon" ("send-icon.svg")"#)
+                ),
+                color: Some(set.btn_element_background_color.to_rgb()),
+                label: Some("Search"),
+            },
+        );
+
+        search_frame.set_size(&mut foucus_on_search_btn, 100); // Button: Foucs on search input
+        search_frame.set_size(&mut search_input, 400); // Input: Put words to scrap
+        search_frame.set_size(&mut start_search_words_btn, 100); // Button: Search
+        search_frame.end();
     }
 
     fn create_progress_frame(wn: DoubleWindow) -> (Progress, Frame, Frame, DoubleWindow) {
