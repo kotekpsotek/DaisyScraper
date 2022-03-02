@@ -51,7 +51,7 @@ pub struct ContainerForLinks { // Struct for Scroll container which is add here 
 }
 
 impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
-    fn update_list(&mut self, added_element: Vec<&str>, settings: &Setting, window: DoubleWindow, input: &mut Input) { 
+    fn update_list(&mut self, added_element: Vec<&str>, settings: &Setting, _window: DoubleWindow, input: &mut Input) { 
         let screen_size = fltk::app::screen_size();
         for url in added_element { // Add Links to the Container
             if url.starts_with("https://") || url.starts_with("http://") {                
@@ -166,6 +166,10 @@ impl ElementsCategories {
         LoadElement::create_top_bar(&mut *window, &*set); // this must be the last because this bar have the functions for remove elements
         // Create Search Bar
         LoadElement::create_search_frame_menu(&mut *window, &*set);
+        // Create Title
+        LoadElement::create_title_menu(&mut *window, &*set);
+        // Create Frame and add elements to the frame
+        LoadElement::create_scrollframe_with_lists_menu(&mut *window, &*set);
     }
 }
 
@@ -652,7 +656,7 @@ impl LoadElement {
         
         delete_buttton_list.on_click({
             let mut tree = tree.clone();
-            let window = window.clone();
+            let _window = window.clone();
             let mut count_info = count_info.clone();
             move |_| {
                 // -- Deselect root element for prevent in delete it accidentally
@@ -793,6 +797,108 @@ impl LoadElement {
         search_frame.set_size(&mut search_input, 400); // Input: Put words to scrap
         search_frame.set_size(&mut start_search_words_btn, 100); // Button: Search
         search_frame.end();
+    }
+
+    // Menu: Create Title
+    fn create_title_menu(window: &mut Window, set: &config::Setting) {
+        let w_w = window.width();
+        // Title: Words List Container
+        let mut container_title = Flex::new((w_w - ((300*2) - 10))/2, 190, 250, 55, "")
+            .row();
+        container_title.set_align(Align::Left | Align::Inside);
+        container_title.set_frame(FrameType::BorderBox);
+        container_title.set_color(set.btn_element_background_color);
+
+        // Create Icon
+        let icon_words = SvgImage::load("svg/list-icon.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "list-icon" ("list-icon.svg")"#);
+        let mut frame_icon_words = Frame::new(0, 0, 0, 55, "")
+            .with_align(Align::Bottom | Align::Inside);
+        frame_icon_words.set_image(Some(icon_words));
+
+        // Create Text
+        let mut text_description = Frame::new(0, 0, 0, 55, "")
+            .with_label("Words Lists")
+            .with_align(Align::Left | Align::Inside);
+        text_description.set_label_font(Font::Courier);
+        text_description.set_label_color(set.element_font_color);
+        text_description.set_label_size(20);
+
+        container_title.set_size(&mut frame_icon_words, 50);
+        container_title.set_size(&mut text_description, 200);
+        container_title.end();
+    }
+
+    // Menu: Create Frame container with others words
+    fn create_scrollframe_with_lists_menu(window: &mut Window, set: &config::Setting) {
+        let mut container_with_words_list = group::Scroll::new((window.width() - 610) / 2 + 10, 260, 610, 610, "");
+        container_with_words_list.set_frame(FrameType::BorderBox);
+        container_with_words_list.set_color(set.fr_element_background_color);
+        container_with_words_list.set_type(group::ScrollType::VerticalAlways);
+        container_with_words_list.set_scrollbar_size(10); // scroll bar width
+        let mut pack = group::Pack::new(0, 0,610,610, "");
+        pack.clone().center_of_parent(); // the all elements is now in the center of the parent
+        pack.set_spacing(5); // the space between elements in single column
+
+        // Add All words lists to the list container with styles and with all services related with specified list
+        Self::add_lists_to_the_scrollframe_with_lists_menu(window, set, &mut pack);
+        
+        pack.end();
+        pack.show();
+        container_with_words_list.end();
+        container_with_words_list.show();
+    }
+
+    // Menu: Add All Words list to the Lists Container
+    fn add_lists_to_the_scrollframe_with_lists_menu(_window: &mut Window, set: &config::Setting, lists_container: &mut group::Pack) {
+        // TODO: Read the saved files and words from files then replace the label by localization from where words have been downloaded
+        let mut single_list_master_con = Flex::new(0, 0, lists_container.width(), 50, "")
+            .row();
+
+        // Container with localization from where words have been downloaded
+        let frame_with_list_name_width = (single_list_master_con.width() as f64 / 1.3) as i32;
+        let mut frame_with_list_name = Frame::new(0, 0, frame_with_list_name_width, single_list_master_con.height(), "")
+            .with_align(Align::Left | Align::Inside)
+            .with_label("This is a place for source domain name");
+        frame_with_list_name.set_frame(FrameType::BorderBox);
+        frame_with_list_name.set_label_font(Font::Courier);
+        frame_with_list_name.set_label_color(set.element_font_color);
+        frame_with_list_name.set_color(set.fr_elements_top_bar_background_color);
+
+        // Container: Buttons and Infos
+        let buttons_infos_container_width = lists_container.width() - frame_with_list_name_width;
+        let mut buttons_infos_container = Flex::new(0, 0, buttons_infos_container_width, lists_container.height(), "")
+            .row();
+        let child_elements_width = (buttons_infos_container.width() / 2) - 5;
+
+        // -- Info: Words which are in list count
+        let mut words_count_in_list = Frame::new(0, 0, child_elements_width, buttons_infos_container.height(), "")
+            .with_align(Align::Center | Align::Inside);
+        words_count_in_list.set_frame(FrameType::BorderBox);
+        words_count_in_list.set_color(set.fr_elements_top_bar_background_color);
+        words_count_in_list.set_label_color(set.element_font_color);
+        words_count_in_list.set_label_font(Font::Courier);
+        words_count_in_list.set_label("0");
+
+        // -- Button: Open List
+        let button_open_list_image = SvgImage::load("svg/up-arrow-icon.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "up-arrow-icon" ("up-arrow-icon.svg")"#);
+        let mut button_open_list = Button::new(0, 0, child_elements_width, buttons_infos_container.height(), "")
+            .with_align(Align::Bottom | Align::Inside);
+        button_open_list.set_frame(FrameType::BorderBox);
+        button_open_list.set_color(set.fr_elements_top_bar_background_color);
+        button_open_list.set_label_color(set.element_font_color);
+        button_open_list.set_image(Some(button_open_list_image));
+        button_open_list.clear_visible_focus();
+
+        buttons_infos_container.set_size(&mut words_count_in_list, child_elements_width); // Set Width for the element with the info about words count in the list
+        buttons_infos_container.set_size(&mut button_open_list, child_elements_width); // Set Width for the button for the open lists with words
+        buttons_infos_container.end();
+
+        single_list_master_con.set_size(&mut frame_with_list_name, frame_with_list_name_width); // Set width for container with List Name
+        single_list_master_con.set_size(&mut buttons_infos_container, buttons_infos_container_width); // Set width for container with Additional infos and buttons
+        single_list_master_con.end();
+
+        // Add elements to the group container
+        lists_container.add(&single_list_master_con);
     }
 
     fn create_progress_frame(wn: DoubleWindow) -> (Progress, Frame, Frame, DoubleWindow) {
