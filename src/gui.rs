@@ -523,7 +523,7 @@ impl LoadElement {
             },
         );
 
-        //
+        // Style Events
         let both_hover = |btn: &mut Button| {
             btn.set_color(btn.color().lighter());
             draw::set_cursor(Cursor::Hand);
@@ -792,6 +792,60 @@ impl LoadElement {
                 label: Some("Search"),
             },
         );
+
+        // Listen Events
+        let mut start_typing_button: Listener<_> = foucus_on_search_btn.clone().into();
+        let mut input: Listener<_> = search_input.clone().into();
+        let mut search_button: Listener<_> = start_search_words_btn.clone().into();
+
+        let search_input_interaction_action = move |r#in: &mut Input| {
+            // action which removes placeholder from Input
+            if r#in.value().trim().len() == 0 || r#in.value() == label_txt.to_string() {
+                r#in.set_value("");
+                r#in.take_focus().unwrap();
+            };
+        };
+
+        // -- Input: Add Urls listener for events
+        input.on_click(search_input_interaction_action.clone()); // When user click on Input element
+        input.on_unfocus(|r#in: &mut Input| {
+            // when user click on other window using mouse cursor
+            if r#in.value().trim().len() == 0 {
+                r#in.set_value(label_txt);
+            };
+        });
+
+        // -- Button: Start Typing listeners
+        start_typing_button.on_click({
+            // When user click on "Start Typing" button
+            let mut search_input = search_input.clone();
+            move |btn| {
+                search_input_interaction_action(&mut search_input); //
+                btn.clear_visible_focus();
+                search_input.take_focus().unwrap();
+            }
+        });
+
+        // -- Button: Search
+        search_button.on_click(|_| {}); // TODO: When use click lists must be search throught or serach list by his name
+
+        // Style Events
+        let both_hover = |btn: &mut Button| {
+            btn.set_color(btn.color().lighter());
+            draw::set_cursor(Cursor::Hand);
+        };
+        let both_leave = {
+            let def_color_button = set.fr_element_background_color;
+            move |btn: &mut Button| {
+                btn.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
+            }
+        };
+        start_typing_button.on_hover(both_hover);
+        start_typing_button.on_leave(both_leave);
+        search_button.on_hover(both_hover);
+        search_button.on_leave(both_leave);
+        
 
         search_frame.set_size(&mut foucus_on_search_btn, 100); // Button: Foucs on search input
         search_frame.set_size(&mut search_input, 400); // Input: Put words to scrap
