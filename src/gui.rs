@@ -951,6 +951,64 @@ impl LoadElement {
         single_list_master_con.set_size(&mut buttons_infos_container, buttons_infos_container_width); // Set width for container with Additional infos and buttons
         single_list_master_con.end();
 
+
+        // Listen events
+        let mut open_list_button: Listener<_> = button_open_list.clone().into();
+        let mut frame_with_list_name_listener: Listener<_> = frame_with_list_name.into();
+
+        open_list_button.on_click(|_| {}); // TODO: Open list when user click in button (add when function for this has been created)
+        frame_with_list_name_listener.on_click(|frame| {}); // TODO: Open list when user click in button (add when function for this has been created)
+
+        // Style Events
+        let both_hover = |btn: &mut Button| {
+            btn.set_color(btn.color().lighter());
+            draw::set_cursor(Cursor::Hand);
+        };
+        let both_leave = {
+            let def_color_button = set.fr_elements_top_bar_background_color;
+            move |btn: &mut Button| {
+                btn.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
+            }
+        };
+        open_list_button.on_hover(both_hover);
+        open_list_button.on_leave(both_leave);
+        frame_with_list_name_listener.on_hover({
+            let mut list_button = button_open_list.clone();
+            let mut words_count_info = words_count_in_list.clone();
+            move |frame| {
+                // Set Style for frame
+                frame.set_color(frame.color().lighter());
+                draw::set_cursor(Cursor::Hand);
+
+                // Set Style for Words Count info
+                words_count_info.set_color(words_count_info.color().lighter());
+                words_count_info.redraw(); // load changed color
+
+                // Set style for Open List Button
+                list_button.set_color(list_button.color().lighter());
+                list_button.redraw(); // load changed color
+            }
+        });
+        frame_with_list_name_listener.on_leave( {
+            let def_color_button = set.fr_elements_top_bar_background_color;
+            let mut list_button = button_open_list.clone();
+            let mut words_count_info = words_count_in_list.clone();
+            move |frame| {
+                // Set Style for frame
+                frame.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
+
+                // Set Style for Words Count info
+                words_count_info.set_color(def_color_button);
+                words_count_info.redraw(); // load changed color
+
+                // Set style for Open List Button
+                list_button.set_color(def_color_button);
+                list_button.redraw(); // Load changed color
+            }
+        });
+
         // Add elements to the group container
         lists_container.add(&single_list_master_con);
     }
