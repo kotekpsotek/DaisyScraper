@@ -26,10 +26,10 @@ struct JsonDocument {
 
 const FOLDER_FILES_WITH_WORDS: &str = "files";
 
-fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, Option<String>)>) -> String {
+fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, String, Option<String>)>) -> String {
     /* Parameters Description: 
         base_name - it's a base name of file without any flags only with time downloaded using chrono crate,
-        flags - this is a list of data which must be writed to the name // Flags are always added to the end of the name // Values in tuple: 0 - protocol off url, 1 - name of url
+        flags - this is a list of data which must be writed to the name // Flags are always added to the end of the name // Values in tuple: 0 - protocol off url, 1 - domain name of url, 2 - path of url, 3 - port of url
     */
     let flg_name_per_flg_vec_index = ["from"]; // 0 - from:page_url (From what url words has been downloaded)
     let mut name_conversion = base_name; // this is a value where new values will be add
@@ -41,34 +41,32 @@ fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, Option<
         // Flag fragments
         let name_for_flag = flg_name_per_flg_vec_index[it_count];
         let protocol_for_flag = flags[it_count].0
-            .replace("://", "");
+            .clone();
         let domain_for_flag = flags[it_count].1
             .clone();
-        let domain_for_flag = Regex::new(r"\\|/(?mi)")
-            .unwrap()
-            .replace_all(&domain_for_flag, "Xkd-=234s")
-            .to_string(); // "Xkd-=234s" is the separator using in paths
-        let port = if let Some(val) = flags[it_count].2.clone() {
+        let url_path_for_flag = flags[it_count].2
+            .clone();
+        let port = if let Some(val) = flags[it_count].3.clone() {
             val
         }
         else
         {
             String::from("null")
         };
-        let value_for_flag = (protocol_for_flag, domain_for_flag, port);
+        let value_for_flag = (protocol_for_flag, domain_for_flag, url_path_for_flag, port);
         // Ready Flag
         let mut ready_flag = format!("{name}={value:?}", name = name_for_flag, value = value_for_flag);
-        ready_flag.push('&');
+        ready_flag.push('&'); // add separarator to the end of the flag
 
         // Add Flag to Name which is return
         name_conversion.push_str(&ready_flag);
 
         it_count += 1;
     };
-    let mut ready_name = name_conversion
+    let mut ready_name = name_conversion // replace the """ from the flags string
         .trim()
         .replace("\"", "");
-    let ready_name = if ready_name.ends_with("&") {
+    let ready_name = if ready_name.ends_with("&") { // remove separator from the last flag end
         ready_name.pop().unwrap();
         ready_name
     }
@@ -78,7 +76,7 @@ fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, Option<
     ready_name
 }
 
-fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>)) -> Result<String, String> {
+fn save_words(d: Vec<String>, u: String, from: (String, String, String, Option<String>)) -> Result<String, String> {
     /* Parameters Description:
         d - this is a list with scraped words from indicated url,
         u - it is a url from where response has been send (response to your reequest because if you would like scrap words you must send request to some kind url),
@@ -90,7 +88,6 @@ fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>))
     // Create vector with flags which are next add to the file name
     let flags_vec = vec![from];
     
-
     // Serialize Data To JSON
     let struct_in = JsonDocument { url: u, words: d };
     let content_json_check = serde_json::to_string(&struct_in);
@@ -98,8 +95,7 @@ fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>))
     match content_json_check {
         Ok(converted_val) => {
             // Save File
-            let file_name: String = format!("{}.json", add_flags_to_file_name(format!("{}", time_now), flags_vec.clone()));
-            println!("{}", file_name);
+            let file_name: String = format!("{}.json", add_flags_to_file_name(format!("{}", time_now), flags_vec));
             let path_to: PathBuf = Path::new(".")
                 .join(FOLDER_FILES_WITH_WORDS)
                 .join(file_name);
@@ -249,8 +245,21 @@ pub async fn scrap_from(urls_from_arg: Vec<String>, gui_params: Option<(fltk::mi
                                             url_without_protocol
                                         };
 
-                                        // Port of the URL
+                                        // Protocol from the url
+                                        let protocol_url = protocol_
+                                            .replace("://", "");
+
+                                        // !Important: Base for get domain name and URL path section
                                         let regex_port = Regex::new(r":\d{1,}").unwrap();
+                                        let url_domain_and_path_base = regex_port
+                                            .replace(&url_without_protocol, "")
+                                            .to_string();
+                                        let mut url_domain_and_path_base = Regex::new(r"/|\\").unwrap().split(&url_domain_and_path_base).collect::<Vec<&str>>();
+
+                                        // Domain Name
+                                        let url_domain_name = url_domain_and_path_base[0].to_string();
+
+                                        // Port of the URL
                                         let port = if let Some(port) = regex_port.find(&url_without_protocol) {
                                             Some(port.as_str().replace(":", "").to_string())
                                         }   
@@ -259,11 +268,11 @@ pub async fn scrap_from(urls_from_arg: Vec<String>, gui_params: Option<(fltk::mi
                                             None
                                         };
 
-                                        // Remove Port from the default URL
-                                        let url_without_protocol = regex_port.replace(&url_without_protocol, "").to_string();
+                                        // URL Path Section
+                                        url_domain_and_path_base.remove(0); // remove domain name
+                                        let path_from_url = url_domain_and_path_base.join("Xkd-=234s");
 
-
-                                        let save_result = save_words(string_vec, response_url, (protocol_.to_string(), url_without_protocol, port));
+                                        let save_result = save_words(string_vec, response_url, (protocol_url, url_domain_name, path_from_url, port));
                                         match save_result
                                         {
                                             Ok(_) => { 

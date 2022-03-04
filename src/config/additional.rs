@@ -42,7 +42,8 @@ impl Features {
                                             let get_all_flags = file_flag_fragments.split("&").collect::<Vec<&str>>();
                                             
                                             for flag in get_all_flags {
-                                                let flag_separate_name_with_value = flag.split("=").collect::<Vec<&str>>();
+                                                let flag_step1 = flag.replace("Xkd-=234s", "/");
+                                                let flag_separate_name_with_value = flag_step1.split("=").collect::<Vec<&str>>();
                                                 let name = flag_separate_name_with_value[0].to_string(); // flag name
                                                 let value = flag_separate_name_with_value[1].to_string(); // flag value
                                                 
@@ -96,7 +97,7 @@ impl Features {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Flags { // this structure includes into his body all flags and add methods to read this flags in simple way
-    data: Vec<SingleFlag>
+    pub data: Vec<SingleFlag>
 }
 
 #[allow(dead_code)]
@@ -110,7 +111,7 @@ impl Flags {
             let element = &mut self.data[index];
             let return_instance = ReturnOutsideFrameData {
                 name: element.name.clone(),
-                value: element.convert()
+                value: element.convert_value()
             };
             return_instance
         } else {
@@ -122,13 +123,13 @@ impl Flags {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct SingleFlag {
-    name: String,
-    value: String
+    pub name: String,
+    pub value: String
 }
 
 #[allow(dead_code)]
 impl SingleFlag {
-    pub fn convert(&mut self) -> (String, String, Option<String>) { // for moment when this method was created the values can be only in tuple types
+    fn convert_value(&mut self) -> (String, String, Option<String>) { // for moment when this method was created the values can be only in tuple types
         // Remove Brackets
         let converting_base = &mut self.value;
         converting_base.remove(0); // remove the first bracket "(" from value String
@@ -140,7 +141,7 @@ impl SingleFlag {
         // Assign elements to the return value
         let protocol = without_comma[0].trim().to_string();
         let url_adress = without_comma[1].trim().to_string();
-        let port = if without_comma[2] != "null" {
+        let port = if without_comma.len() == 3 && without_comma[2] != "null" {
             Some(without_comma[2].trim().to_string())
         }
         else {

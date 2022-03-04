@@ -905,6 +905,41 @@ impl LoadElement {
     // Menu: Add All Words list to the Lists Container
     fn add_lists_to_the_scrollframe_with_lists_menu(_window: &mut Window, set: &config::Setting, lists_container: &mut group::Pack) {
         // TODO: Read the saved files and words from files then replace the label by localization from where words have been downloaded
+        let words_names = crate::config::additional::Features::get_flags_data_from_words_files();
+        match words_names {
+            Ok(mut flags) => {
+                let flag_size = flags.get_elements_count();
+                for flag_field in 0..flag_size { 
+                    let flag = flags.get_element_from_index(flag_field);
+                    if flag.name == "from" {
+                        let protocol_from_flag = flag.value.0;
+                        let domainname_from_flag = flag.value.1;
+                        let port_from_flag = if let Some(wal) = flag.value.2 {
+                            if wal != format!("null") {
+                                String::from(wal)
+                            }
+                            else {
+                                String::new()
+                            }
+                        }
+                        else {
+                            String::new()
+                        };
+                        
+                        // TODO: Path should be placed in another flag
+                        let file_name = if port_from_flag.len() > 0 {
+                            format!("{protocol}://{domain_name}:{port}", protocol = protocol_from_flag, domain_name = domainname_from_flag, port = port_from_flag)
+                        }
+                        else {
+                            format!("{protocol}://{domain_name}", protocol = protocol_from_flag, domain_name = domainname_from_flag)
+                        };
+                    }
+                }
+            },
+            Err(_) => 
+                ()
+        }
+        
         let mut single_list_master_con = Flex::new(0, 0, lists_container.width(), 50, "")
             .row();
 
@@ -956,8 +991,17 @@ impl LoadElement {
         let mut open_list_button: Listener<_> = button_open_list.clone().into();
         let mut frame_with_list_name_listener: Listener<_> = frame_with_list_name.into();
 
-        open_list_button.on_click(|_| {}); // TODO: Open list when user click in button (add when function for this has been created)
-        frame_with_list_name_listener.on_click(|frame| {}); // TODO: Open list when user click in button (add when function for this has been created)
+        // Listen events which occur for all elements like click except "Delete Button"
+        // for child_num in 0..single_list_master_con.children() {
+        //     let children = single_list_master_con.child(child_num).unwrap();
+        //     let mut children_listener: Listener<_> = children.into();
+
+        //     // Listen events for all childrens
+        //     // -- Click in element
+        //     children_listener.on_click(|child| { // TODO: Show list with words
+
+        //     });
+        // };
 
         // Style Events
         let both_hover = |btn: &mut Button| {
