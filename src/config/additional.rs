@@ -92,6 +92,62 @@ impl Features {
             Err("Files directory doesn't exists!!!".to_string())
         }
     }
+
+    // Get All Files Names from files in ./files folder
+    pub fn get_files_names() -> Vec<String> {
+        let read_dir = fs::read_dir(Path::new("./files")).unwrap();
+        let mut vec = Vec::<String>::new();
+
+        for file in read_dir {
+            let file = file.unwrap();
+            let file_name = file
+                .file_name()
+                .to_str()
+                .unwrap()
+                .to_string();
+            let file_name_without_flags = file_name.split("flags_section")
+                .collect::<Vec<&str>>()[0]
+                .trim()
+                .to_string();
+            vec.push(file_name_without_flags);
+        } 
+
+        return vec;
+    }
+
+    pub fn get_words_in_file(file_name: String) -> Option<Vec<String>> {
+        let read_dir = fs::read_dir(Path::new("./files")).unwrap();
+        let mut vec = Vec::<String>::new();
+        
+        // Get words from file and put it into Vector
+        for file in read_dir {
+            let file = file.unwrap();
+            let iter_file_name = file.file_name()
+                .to_str()
+                .unwrap()
+                .to_string();
+            let iter_file_name_without_flags = iter_file_name.split("flags_section")
+                .collect::<Vec<&str>>()[0]
+                .trim()
+                .to_string();
+            
+            if iter_file_name_without_flags == file_name {
+                let this_file_content = fs::read_to_string(Path::new(&format!("./files/{}", iter_file_name))).unwrap();
+                let mut deserialized_content: crate::scrap::JsonDocument = serde_json::from_str(&this_file_content).unwrap();
+
+                vec.append(&mut deserialized_content.words);
+                break;
+            }
+        }
+
+        // Return Some when in vector are words from file or None when in vector aren't words from file
+        if vec.len() > 0 {
+            Some(vec)
+        }
+        else {
+            None
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -129,7 +185,7 @@ pub struct SingleFlag {
 
 #[allow(dead_code)]
 impl SingleFlag {
-    fn convert_value(&mut self) -> (String, String, Option<String>) { // for moment when this method was created the values can be only in tuple types
+    fn convert_value(&mut self) -> (String, String, String, Option<String>) { // for moment when this method was created the values can be only in tuple types
         // Remove Brackets
         let converting_base = &mut self.value;
         converting_base.remove(0); // remove the first bracket "(" from value String
@@ -140,15 +196,16 @@ impl SingleFlag {
         
         // Assign elements to the return value
         let protocol = without_comma[0].trim().to_string();
-        let url_adress = without_comma[1].trim().to_string();
-        let port = if without_comma.len() == 3 && without_comma[2] != "null" {
-            Some(without_comma[2].trim().to_string())
+        let url_domain_name = without_comma[1].trim().to_string();
+        let url_path_section = without_comma[2].trim().to_string();
+        let port = if without_comma.len() == 4 && without_comma[3].trim() != "null" {
+            Some(without_comma[3].trim().to_string())
         }
         else {
             None
         };
 
-        let return_value: (String, String, Option<String>) = (protocol, url_adress, port);
+        let return_value: (String, String, String, Option<String>) = (protocol, url_domain_name, url_path_section, port);
         return_value
     }
 }
@@ -157,5 +214,5 @@ impl SingleFlag {
 #[allow(dead_code)]
 pub struct ReturnOutsideFrameData { // this is a struct with converted values which is returned from Flags get_element_from_index() method
     pub name: String,
-    pub value: (String, String, Option<String>)
+    pub value: (String, String, String, Option<String>)
 }

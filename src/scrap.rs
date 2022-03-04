@@ -18,10 +18,10 @@ use fltk::{
     prelude::*
 };
 
-#[derive(Serialize, Deserialize)]
-struct JsonDocument {
-    url: String,
-    words: Vec<String>,
+#[derive(Serialize, Deserialize, Clone)]
+pub struct JsonDocument {
+    pub url: String,
+    pub words: Vec<String>,
 }
 
 const FOLDER_FILES_WITH_WORDS: &str = "files";
