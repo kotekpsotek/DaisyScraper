@@ -52,6 +52,7 @@ pub struct ContainerForLinks { // Struct for Scroll container which is add here 
 }
 
 impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
+    // Function which updates list with the pages links from where words should be scraped
     fn update_list(&mut self, added_element: Vec<&str>, settings: &Setting, _window: DoubleWindow, input: &mut Input) { 
         let screen_size = fltk::app::screen_size();
         for url in added_element { // Add Links to the Container
@@ -62,16 +63,43 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
                         ()
                     }
                 };
-            
+
                 // Update the links list
                 let url = url.replace("//", &"\\".repeat(4)); // change url for stop create new sub-lists
                 let item = self.src.root().unwrap().tree().unwrap().add(&url);
                 
                 // Add Element to the container only when the element didn't already exists
-                if let Some(mut item) = item {
-                    item.set_label_color(settings.element_font_color); // Dont't remove set variable if you would like to application work
-                    item.set_label_font(Font::Courier);
-                    self.src.redraw(); // load visible changes for the user to the container with links
+                if let Some(_item) = item {
+                    // Add Styles for for all elements located in the list
+                    for mut item in self.src.root().unwrap().tree().unwrap().get_items().unwrap() {
+                        // Function which set styles for parent child nodes like https://test.com -> test
+                        fn item_has_children(item: TreeItem, setting_label_color: Color) {
+                            let item_childrens = item.children();
+                            if item_childrens > 0 {
+                                for idx in 0..item_childrens {
+                                    // Get Child item
+                                    let mut child_item = item.child(idx).unwrap();
+                                    
+                                    // Set Style for child item
+                                    child_item.set_label_color(setting_label_color);
+                                    child_item.set_label_font(Font::Courier);
+                                    
+                                    // Check if children item hasn't got other children item (recursive function)
+                                    item_has_children(child_item, setting_label_color.clone());
+                                }
+                            }
+                        }
+
+                        // Set style for item
+                        item.set_label_color(settings.element_font_color); // Dont't remove set variable if you would like to application work
+                        item.set_label_font(Font::Courier);
+
+                        // Check if item has children and when it have children set it style
+                        item_has_children(item, settings.element_font_color);
+                    };
+
+                    // Reload list for add styles changes for it
+                    self.src.redraw();
                     
                     // Update displayed elemtnts count
                     Self::update_elements_count(&mut self.elements_in_count, ActionType::Update, 1);
@@ -418,11 +446,16 @@ impl LoadElement {
             if urls_count.len() > 0 {
                 let mut wn = DoubleWindow::new(0, 0, 700, 250, "Scrap words progress");
                 wn.set_pos((screen_width as i32 - 700) / 2, (screen_height as i32 - 250) / 2);
+                // println!("{}", search_input.value()); !!! In this place search input works good
 
                 tokio::spawn({
-                    let data = LoadElement::create_progress_frame(wn.clone()); // create scrap words progress window 
+                    let data = LoadElement::create_progress_frame(wn.clone()); // create scrap words progress window
+                    // println!("{}", search_input.value()); !!! In this place search input works good
+                    let search_input_val = search_input.value(); // In this way this works
                     async move { // start scrap words (this must be in tokio block because scrap words is async function)
-                        scrap_words(&mut links_list, &search_input, data).await;
+                        println!("{}", search_input_val);
+                        // println!("{}", search_input.value()); // in this element search input value doesn't work
+                        scrap_words(&mut links_list, search_input_val, data).await;
                     }
                 });
                 wn.end();
@@ -438,14 +471,14 @@ impl LoadElement {
             }
         });
 
-        // -- Button: Start Scrap words from url to scrap list or input when scrap words list is empty
-        async fn scrap_words(link_list: &mut ContainerForLinks, search_input: &Input, gui_params: (Progress, Frame, Frame, DoubleWindow)) { // starts scrap words from pages based on added links
+        // -- Button: Start Scrap words from url to scrap list or input when scrap words list is empty // TODO: This function should be deleted
+        async fn scrap_words(link_list: &mut ContainerForLinks, search_input: String, gui_params: (Progress, Frame, Frame, DoubleWindow)) { // starts scrap words from pages based on added links
             let mut search_vec = Vec::<String>::new(); // vec which is sending to search function
 
             // Add value from input to search_vec
-            if search_input.value().trim().len() > 0 {
-                let b_ = search_input.value();
-                let search_input_vec = b_.trim().split(" ").collect::<Vec<&str>>();
+            if search_input.trim().len() > 0 {
+                let b_ = search_input.trim();
+                let search_input_vec = b_.split(" ").collect::<Vec<&str>>();
                 for url in search_input_vec {
                     if url.starts_with("https://") || url.starts_with("http://") {
                         search_vec.push(url.to_string());
@@ -461,7 +494,7 @@ impl LoadElement {
             };
 
             // Scrap words and show scrap progress bar
-            scrap_from(search_vec, Some(gui_params.clone()), Some((link_list.clone(), search_input.clone()))).await;
+            // scrap_from(search_vec, Some(gui_params.clone()), Some((link_list.clone(), search_input.clone()))).await; TODO: Add changes in gui_links params and uncomment this
         }
 
         // -- Keyboard events
