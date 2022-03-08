@@ -45,6 +45,8 @@ struct TransferredStyleData {
     label: Option<&'static str>,
 }
 
+static mut LINKS_TO_DOWNLOAD_LIST: Vec<String> = Vec::new();
+
 #[derive(Debug, Clone)]
 pub struct ContainerForLinks { // Struct for Scroll container which is add here in LoadElement::create_search_frame method
     pub src: fltk::tree::Tree,
@@ -53,13 +55,13 @@ pub struct ContainerForLinks { // Struct for Scroll container which is add here 
 
 impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
     // Function which updates list with the pages links from where words should be scraped
-    fn update_list(&mut self, added_element: Vec<&str>, settings: &Setting, _window: DoubleWindow, input: &mut Input) { 
+    fn update_list(&mut self, added_element: Vec<&str>, settings: &Setting, _window: DoubleWindow, input: &mut Input) {
         let screen_size = fltk::app::screen_size();
         for url in added_element { // Add Links to the Container
-            if url.starts_with("https://") || url.starts_with("http://") {                
+            if url.starts_with("https://") || url.starts_with("http://") {
                 // When list is closed list becomes open now
                 if self.src.is_close("Links List") {
-                    if self.src.open("Links List", true).is_err() { // When list coudn't be opened from some reason the program return empty tuple type to prevent before program crash 
+                    if self.src.open("Links List", true).is_err() { // When list coudn't be opened from some reason the program return empty tuple type to prevent before program crash
                         ()
                     }
                 };
@@ -67,9 +69,14 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
                 // Update the links list
                 let url = url.replace("//", &"\\".repeat(4)); // change url for stop create new sub-lists
                 let item = self.src.root().unwrap().tree().unwrap().add(&url);
-                
+
                 // Add Element to the container only when the element didn't already exists
                 if let Some(_item) = item {
+                    // Add Link to the all links list placed in "static mut" unsafe variable
+                    unsafe {
+                        LINKS_TO_DOWNLOAD_LIST.push(url)
+                    };
+
                     // Add Styles for for all elements located in the list
                     for mut item in self.src.root().unwrap().tree().unwrap().get_items().unwrap() {
                         // Function which set styles for parent child nodes like https://test.com -> test
@@ -79,11 +86,11 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
                                 for idx in 0..item_childrens {
                                     // Get Child item
                                     let mut child_item = item.child(idx).unwrap();
-                                    
+
                                     // Set Style for child item
                                     child_item.set_label_color(setting_label_color);
                                     child_item.set_label_font(Font::Courier);
-                                    
+
                                     // Check if children item hasn't got other children item (recursive function)
                                     item_has_children(child_item, setting_label_color.clone());
                                 }
@@ -100,7 +107,7 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
 
                     // Reload list for add styles changes for it
                     self.src.redraw();
-                    
+
                     // Update displayed elemtnts count
                     Self::update_elements_count(&mut self.elements_in_count, ActionType::Update, 1);
 
@@ -110,7 +117,7 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
                 else {
                     dialog::alert((screen_size.0 as i32 - 900) / 2, 10, &format!("This URL: \"{}\" which is added to input field is already in the links list. The values which are in the list cound't be repeated multiple times. Links List allow only unique elements!!!", url));
                 };
-            } else { // When link starts without http:// | https:// 
+            } else { // When link starts without http:// | https://
                 dialog::alert((screen_size.0 as i32 - 900) / 2, 10, &format!("The adding urls to the search field should starts with protocols http:// or https://. Your link \"{}\" should to begin with https:// or http:// protocol!!!", url));
             };
         };
@@ -145,33 +152,7 @@ impl ContainerForLinks { // Update Frame Container VIA elements maniupulation
         let label_text = format!("Elements Count: {}", new_count);
         label.set_label(&label_text);
     }
-
-    // return the value from elements which are in links list
-    fn links_container_get_values(&self) -> Result<Vec<String>, &'static str> {
-        if let Some(vals) = self.src.get_items() {
-            let mut returned_vec = Vec::<String>::new();
-            for item in vals {
-                if let Some(val) = item.label() {
-                    if val != self.src.root().unwrap().label().unwrap() { // when item value isn't the same value as root label value
-                        let val = val.replace("\\", "/");
-                        returned_vec.push(val);
-                    }
-                };
-                // in onther hand when value coudn't be getted nothing has been doed and loop go to next iteration
-            };
-
-            if returned_vec.len() > 0 {
-                Ok(returned_vec)
-            }
-            else {
-                Err("the vector which should be returned is empty (doesn't have any values because program coudn't get values)")
-            }
-        }
-        else {
-            Err("links container hasn't got any links inside")
-        }
-    }
-} 
+}
 
 pub enum CreateElementCategoryType { // The type of window which should be created should because if you use "Deafult" element then Search window is creating by default
     Default,
@@ -240,7 +221,7 @@ impl LoadElement {
                 crate::states::save_window_state(crate::states::OpenedWindow::Menu).unwrap(); // save/update APP STATE
                 ElementsCategories::create_menu_elements(window, set);
             }
-            
+
         }
     }
 
@@ -398,69 +379,96 @@ impl LoadElement {
                 {
                     let b_values = search_input.value().clone();
                     let values = b_values.trim().split(" ").collect::<Vec<&str>>();
-                    links_list.update_list(values, &set, window.clone(), &mut search_input); // links list: Add new elements to the links 
+                    links_list.update_list(values, &set, window.clone(), &mut search_input); // links list: Add new elements to the links
                 };
             }
         });
-        
+
         // !!! Function which initialize download words from GUI
         fn show_window_and_scrap_words(links_list: &ContainerForLinks, search_input: &Input) {
-            let mut links_list = links_list.clone();
-            let (screen_width, screen_height) = fltk::app::screen_size();
-            let search_input = search_input.clone();
+            unsafe {
+                let mut links_list = links_list.clone();
+                let (screen_width, screen_height) = fltk::app::screen_size();
+                let search_input = search_input.clone();
 
-            // Links from Input Container
-            let mut base_he = if search_input.value().trim().len() > 0 {
-                // Process the value
-                let res = Vec::from_iter(search_input.value().trim().split(" ").collect::<Vec<&str>>().iter().map(|val| {
-                    let val = val.trim();
-                    if val.starts_with("https://") || val.starts_with("http://") {
-                        val.to_string()
+                // Links from Input Container
+                let mut base_he = if search_input.value().trim().len() > 0 {
+                    // Process the value
+                    let res = Vec::from_iter(search_input.value().trim().split(" ").collect::<Vec<&str>>().iter().map(|val| {
+                        let val = val.trim();
+                        if val.starts_with("https://") || val.starts_with("http://") {
+                            val.to_string()
+                        }
+                        else {
+                            String::new()
+                        }
+                    }));
+
+                    // Return value
+                    if res.join(" ").trim().len() > 0 {
+                        res
                     }
                     else {
-                        String::new()
+                        Vec::<String>::new()
                     }
-                }));
-                
-                // Return value
-                if res.join(" ").trim().len() > 0 {
-                    res
                 }
                 else {
                     Vec::<String>::new()
-                }
-            }
-            else {
-                Vec::<String>::new()
-            };
-            // Links from Container for other links
-            let mut urls_count = if let Ok(vec) = links_list.links_container_get_values() {
-                vec
-            }
-            else {
-                Vec::<String>::new()
-            };
-            urls_count.append(&mut base_he);
-            
-            // When URLs have been added
-            if urls_count.len() > 0 {
-                let mut wn = DoubleWindow::new(0, 0, 700, 250, "Scrap words progress");
-                wn.set_pos((screen_width as i32 - 700) / 2, (screen_height as i32 - 250) / 2);
-                // println!("{}", search_input.value()); !!! In this place search input works good
+                };
+                // Add Links from Container to list with other links
+                base_he.append(&mut LINKS_TO_DOWNLOAD_LIST.clone());
 
-                tokio::spawn({
-                    let data = LoadElement::create_progress_frame(wn.clone()); // create scrap words progress window
-                    // println!("{}", search_input.value()); !!! In this place search input works good
-                    let search_input_val = search_input.value(); // In this way this works
-                    async move { // start scrap words (this must be in tokio block because scrap words is async function)
-                        println!("{}", search_input_val);
-                        // println!("{}", search_input.value()); // in this element search input value doesn't work
-                        scrap_words(&mut links_list, search_input_val, data).await;
+                // When URLs have been added
+                if base_he.len() > 0 {
+                    let mut wn = DoubleWindow::new(0, 0, 700, 250, "Scrap words progress");
+                    wn.set_pos((screen_width as i32 - 700) / 2, (screen_height as i32 - 250) / 2);
+
+                    tokio::spawn({
+                        let data = LoadElement::create_progress_frame(wn.clone()); // create scrap words progress window
+                        // println!("{}", search_input.value()); !!! In this place search input works good
+                        let search_input_val = search_input.value(); // In this way this works
+                        async move { // start scrap words (this must be in tokio block because scrap words is async function)
+                            scrap_words(&mut links_list, search_input_val, data).await;
+                        }
+                    });
+                    wn.end();
+                    wn.show();
+                };
+            }
+        }
+
+        // -- Button: Start Scrap words from url to scrap list or input when scrap words list is empty // TODO: This function should be deleted
+        async fn scrap_words(link_list: &mut ContainerForLinks, search_input: String, gui_params: (Progress, Frame, Frame, DoubleWindow)) { // starts scrap words from pages based on added links
+            unsafe {
+                let mut search_vec = Vec::<String>::new(); // Vector with values from Input and "Links List" Frame is sending to search function
+
+                // Add value from input to search_vec
+                if search_input.trim().len() > 0 {
+                    let b_ = search_input.trim();
+                    let search_input_vec = b_.split(" ").collect::<Vec<&str>>();
+                    for url in search_input_vec {
+                        if url.starts_with("https://") || url.starts_with("http://") {
+                            search_vec.push(url.to_string());
+                        };
                     }
-                });
-                wn.end();
-                wn.show();
-            };
+                };
+
+                // Add values from links list to vec with links list
+                search_vec.append(&mut LINKS_TO_DOWNLOAD_LIST.clone());
+
+                // Format url to correct form (this is now focused on replacing \\ from url which is from "Links List" frame)
+                search_vec = search_vec
+                    .iter()
+                    .map(|val| {
+                        let regexpresion = Regex::new(r"\\{2,}").unwrap().replace_all(val, "//").to_string();
+                        println!("regexp: {}", regexpresion);
+                        regexpresion
+                    })
+                    .collect();
+        
+                // Scrap words and show scrap progress bar
+                // scrap_from(search_vec, Some(gui_params.clone()), Some((link_list.clone(), fltk::input::Input::default()))).await; // TODO: Add changes in gui_links params and uncomment this
+            }
         }
 
         scrap_words_btn_listener.on_click({ // When user click on button "Scrap Words"
@@ -471,44 +479,18 @@ impl LoadElement {
             }
         });
 
-        // -- Button: Start Scrap words from url to scrap list or input when scrap words list is empty // TODO: This function should be deleted
-        async fn scrap_words(link_list: &mut ContainerForLinks, search_input: String, gui_params: (Progress, Frame, Frame, DoubleWindow)) { // starts scrap words from pages based on added links
-            let mut search_vec = Vec::<String>::new(); // vec which is sending to search function
-
-            // Add value from input to search_vec
-            if search_input.trim().len() > 0 {
-                let b_ = search_input.trim();
-                let search_input_vec = b_.split(" ").collect::<Vec<&str>>();
-                for url in search_input_vec {
-                    if url.starts_with("https://") || url.starts_with("http://") {
-                        search_vec.push(url.to_string());
-                    };
-                }
-            };
-
-            // Add values from links list to vec with links list
-            if let Ok(links_values) = link_list.links_container_get_values() {
-                for url in links_values {
-                    search_vec.push(url)
-                }
-            };
-
-            // Scrap words and show scrap progress bar
-            // scrap_from(search_vec, Some(gui_params.clone()), Some((link_list.clone(), search_input.clone()))).await; TODO: Add changes in gui_links params and uncomment this
-        }
-
         // -- Keyboard events
         window.handle({
             let mut links_list = links_list.clone();
             let mut search_input = search_input.clone();
             let mut last_crl_pressed: bool = false;
-            let window = window.clone();            
+            let window = window.clone();
 
             move |_wn, ev| {
                 let key = fltk::app::event_key();
                 let text = fltk::app::event_text();
 
-                if let Event::KeyUp = ev { // when user release the button 
+                if let Event::KeyUp = ev { // when user release the button
                     if let Key::Enter = key { // When user click enter key the words will be download from web-pages
                         show_window_and_scrap_words(&links_list, &search_input); // initialize download words from webpages
                     };
@@ -517,9 +499,9 @@ impl LoadElement {
                 else if let Event::KeyDown = ev { // when user click button only
                     if let Key::ControlL = key { // when user click LControl he have got autorizxation for using ctrl + other_key actions
                         last_crl_pressed = true
-                    } 
+                    }
                     else if last_crl_pressed {
-                        match text.as_str() { // Do specific actions for specific clicked keys 
+                        match text.as_str() { // Do specific actions for specific clicked keys
                             "a" => links_list.update_list(search_input.value().split(" ").collect::<Vec<&str>>(), &Setting::app_default(), window.clone(), &mut search_input), // links list: Add new elements to the links  // add putted in input element links to the links container
                             _ => ()
                         };
@@ -601,14 +583,14 @@ impl LoadElement {
             .with_pos(window_w/2, 190)
             .column();
         flex_column.set_pad(0);
-        
+
         // -- TopBar container
         let mut buttons_bar_main = Flex::default()
             .row();
         buttons_bar_main.set_frame(FrameType::BorderBox);
         buttons_bar_main.set_color(set.btn_element_background_color);
         buttons_bar_main.end();
-        
+
         // -- ScrollElements container // Scroll Element only
         let mut tree = fltk::tree::Tree::new(0, 0, flex_container_width_height, flex_container_width_height - 50, "");
         tree.set_root_label("Links List");
@@ -618,14 +600,14 @@ impl LoadElement {
         t_root.set_label_font(Font::Courier);
         t_root.set_label_color(set.element_font_color);
         t_root.set_label_size(18);
-        
+
         // -- Set Size for this two containers
         flex_column.set_size(&mut buttons_bar_main, 50); // height of buttons bar
         // flex_column.set_size(&mut elements_scroll, flex_container_width_height - 50); // height of scroll elemenets container
-        
+
         // Stop Load changes to elements
         flex_column.end();
-        
+
         // Create Elements for TopBar
         // -- Select All button
         let mut select_all_button = Button::default()
@@ -647,7 +629,7 @@ impl LoadElement {
         delete_buttton.set_color(set.fr_elements_top_bar_background_color);
         delete_buttton.set_frame(FrameType::BorderBox);
         delete_buttton.set_image(Some(delete_button_img));
-        
+
         // -- Count Info Element
         let mut count_info = Frame::default()
             .with_label("Elements Count: 0")
@@ -657,11 +639,11 @@ impl LoadElement {
         count_info.set_label_color(set.element_font_color);
         count_info.set_label_font(Font::Courier);
         count_info.set_frame(FrameType::BorderBox);
-        
+
         // -- Events Handle Section for TopBar button
         let mut select_all_button_list: Listener<_> = select_all_button.into();
         let mut delete_buttton_list: Listener<_> = delete_buttton.into();
-            
+
         select_all_button_list.on_click({ // when user click on select on button
             let mut tree = tree.clone();
             move |_b| {
@@ -687,7 +669,7 @@ impl LoadElement {
                 }
             }
         });
-        
+
         delete_buttton_list.on_click({
             let mut tree = tree.clone();
             let _window = window.clone();
@@ -722,7 +704,7 @@ impl LoadElement {
                                     }
                                 };
                             };
-                            
+
                             // When elements has been succesfull removed from the container is displayed alert inform user about succesfull action
                             if removed {
                                 dialog::message((screen_size.0 as i32 - 900) / 2, 10,&format!("Deleted {} links from the list!!!", selected_items_count)); // infor about deleted elements count
@@ -879,7 +861,7 @@ impl LoadElement {
         start_typing_button.on_leave(both_leave);
         search_button.on_hover(both_hover);
         search_button.on_leave(both_leave);
-        
+
 
         search_frame.set_size(&mut foucus_on_search_btn, 100); // Button: Foucs on search input
         search_frame.set_size(&mut search_input, 400); // Input: Put words to scrap
@@ -929,7 +911,7 @@ impl LoadElement {
 
         // Add All words lists to the list container with styles and with all services related with specified list
         Self::add_lists_to_the_scrollframe_with_lists_menu(window, set, &mut pack);
-        
+
         pack.end();
         pack.show();
         container_with_words_list.end();
@@ -943,7 +925,7 @@ impl LoadElement {
         match flags_names {
             Ok(mut flags) => {
                 let flag_size = flags.get_elements_count();
-                for flag_field in 0..flag_size { 
+                for flag_field in 0..flag_size {
                     let flag = flags.get_element_from_index(flag_field);
                     let file_name = &files_names[flag_field];
                     if flag.name == "from" {
@@ -956,7 +938,7 @@ impl LoadElement {
                         else {
                             String::new()
                         };
-                        
+
                         // Get File Download form flag
                         let download_from_url_name = if port_from_flag.len() > 0 {
                             format!("{protocol}://{domain_name}:{port}/{url_path}", protocol = protocol_from_flag, domain_name = domainname_from_flag, port = port_from_flag, url_path = url_path_from_flag)
@@ -970,10 +952,10 @@ impl LoadElement {
                     }
                 }
             },
-            Err(_) => 
+            Err(_) =>
                 ()
         }
-        
+
         // Creating Window which show us all lists with words downloaded from pages before
         fn create_gui_list(file_name: &String, flag_from: String, set: &config::Setting, lists_container: &mut group::Pack) {
             let words_from_file = crate::config::additional::Features::get_words_in_file(file_name.clone()); // all words from file
@@ -1030,7 +1012,7 @@ impl LoadElement {
             let mut file_name_frame_container = Frame::new(0, 0, frame_with_list_name_width, single_list_master_con.height(), "")
                 .with_label(file_name);
             file_name_frame_container.hide();
-            
+
             buttons_infos_container.set_size(&mut words_count_in_list, child_elements_width); // Set Width for the element with the info about words count in the list
             buttons_infos_container.set_size(&mut button_open_list, child_elements_width); // Set Width for the button for the open lists with words
             buttons_infos_container.end();
@@ -1112,11 +1094,11 @@ impl LoadElement {
             // Add elements to the group container
             lists_container.add(&single_list_master_con);
         }
-    
+
         // Creating Window with words occurs for the specified lists (this window will be created when user click on any list with words created by create_gui_list() function which is at the top :])
         fn create_words_from_list_window(name_words_list: String, list_words: &Vec<String>, set: Setting) {
-            let frame_size = 750; // Size for frame with words list in x and y axis            
-            
+            let frame_size = 750; // Size for frame with words list in x and y axis
+
             // Create Window
             let screen_size = fltk::app::screen_size();
             let window_name = format!("Daisy Scraper -> Words Lists -> {}", name_words_list);
@@ -1147,15 +1129,15 @@ impl LoadElement {
             list_title_container.set_size(&mut words_icon, 50); // set width for the element with words list icon
             list_title_container.set_size(&mut words_title, 250); // set width for the element with words list title
             list_title_container.end();
-            
-            
+
+
             // Create Frame With All Words
             let mut container_with_words_list = group::Scroll::new((list_window.width() - frame_size) / 2 + 10, 120, frame_size, frame_size, "");
             container_with_words_list.set_frame(FrameType::BorderBox);
             container_with_words_list.set_color(set.fr_element_background_color);
             container_with_words_list.set_type(group::ScrollType::VerticalAlways);
             container_with_words_list.set_scrollbar_size(10); // scroll bar width
-            
+
             let mut pack = group::Pack::new(0, 0, container_with_words_list.width(), container_with_words_list.height(), "");
             pack.clone().center_of_parent(); // the all elements is now in the center of the parent
             pack.set_spacing(5); // the space between elements in single column
@@ -1186,7 +1168,7 @@ impl LoadElement {
                 check_button.set_label_size(16);
                 check_button.set_label_color(set.element_font_color);
                 check_button.clear_visible_focus();
-                
+
                 // Create Container with word text
                 let mut word_text_buf = TextBuffer::default();
                 word_text_buf.set_text(word);
@@ -1205,7 +1187,7 @@ impl LoadElement {
 
                 // Listen events section
                 let mut check_button_listener: Listener<_> = check_button.into();
-                
+
                 // When user click on "learned" check button
                 check_button_listener.on_click({
                     let default_color = set.fr_elements_top_bar_background_color;
