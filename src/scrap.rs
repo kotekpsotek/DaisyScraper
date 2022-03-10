@@ -26,7 +26,7 @@ pub struct JsonDocument {
 
 const FOLDER_FILES_WITH_WORDS: &str = "files";
 
-fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, String, Option<String>)>) -> String {
+fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, Option<String>, Option<String>)>) -> String {
     /* Parameters Description: 
         base_name - it's a base name of file without any flags only with time downloaded using chrono crate,
         flags - this is a list of data which must be writed to the name // Flags are always added to the end of the name // Values in tuple: 0 - protocol off url, 1 - domain name of url, 2 - path of url, 3 - port of url
@@ -44,8 +44,12 @@ fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, String,
             .clone();
         let domain_for_flag = flags[it_count].1
             .clone();
-        let url_path_for_flag = flags[it_count].2
-            .clone();
+        let url_path_for_flag = if let Some(val) = &flags[it_count].2 {
+            val.clone()
+        }
+        else {
+            String::from("null")
+        };
         let port = if let Some(val) = flags[it_count].3.clone() {
             val
         }
@@ -76,7 +80,7 @@ fn add_flags_to_file_name(base_name: String, flags: Vec<(String, String, String,
     ready_name
 }
 
-fn save_words(d: Vec<String>, u: String, from: (String, String, String, Option<String>)) -> Result<String, String> {
+fn save_words(d: Vec<String>, u: String, from: (String, String, Option<String>, Option<String>)) -> Result<String, String> {
     /* Parameters Description:
         d - this is a list with scraped words from indicated url,
         u - it is a url from where response has been send (response to your reequest because if you would like scrap words you must send request to some kind url),
@@ -270,7 +274,12 @@ pub async fn scrap_from(urls_from_arg: Vec<String>, gui_params: Option<(fltk::mi
 
                                         // URL Path Section
                                         url_domain_and_path_base.remove(0); // remove domain name
-                                        let path_from_url = url_domain_and_path_base.join("Xkd-=234s");
+                                        let path_from_url = if url_domain_and_path_base.len() > 0 {
+                                            Some(url_domain_and_path_base.join("Xkd-=234s"))
+                                        }
+                                        else {
+                                            None
+                                        };
 
                                         let save_result = save_words(string_vec, response_url, (protocol_url, url_domain_name, path_from_url, port));
                                         match save_result

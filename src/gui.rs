@@ -160,7 +160,7 @@ pub enum CreateElementCategoryType { // The type of window which should be creat
     Menu
 }
 
-struct ElementsCategories;
+struct ElementsCategories; // struct with function which create "Menu" or "Search Section"
 impl ElementsCategories {
     fn create_search_words_from_links_elements(window: &mut Window, set: &config::Setting) { // create elements for searching links from webpages
         // Create Top Bar
@@ -174,12 +174,12 @@ impl ElementsCategories {
     fn create_menu_elements(window: &mut Window, set: &config::Setting) { // TODO: Create Menu Elements for read saved data
         // Create Top Bar
         LoadElement::create_top_bar(&mut *window, &*set); // this must be the last because this bar have the functions for remove elements
-        // Create Search Bar
-        LoadElement::create_search_frame_menu(&mut *window, &*set);
         // Create Title
         LoadElement::create_title_menu(&mut *window, &*set);
         // Create Frame and add elements to the frame
-        LoadElement::create_scrollframe_with_lists_menu(&mut *window, &*set);
+        let mut search_frame = LoadElement::create_scrollframe_with_lists_menu(&mut *window, &*set);
+        // Create Search Bar
+        LoadElement::create_search_frame_menu(&mut *window, &*set, &mut search_frame);
     }
 }
 
@@ -768,7 +768,7 @@ impl LoadElement {
     }
 
     // Menu: Create Search Bar
-    fn create_search_frame_menu(window: &mut Window, set: &config::Setting) {
+    fn create_search_frame_menu(window: &mut Window, set: &config::Setting, container_with_lists: &mut group::Pack) {
         let window_w = window.width();
         let x_localization = (window_w / 2) - (610 / 2) + 10;
         let mut search_frame = Flex::new(x_localization , 120, 600, 55, "")
@@ -843,7 +843,9 @@ impl LoadElement {
         });
 
         // -- Button: Search
-        search_button.on_click(|_| {}); // TODO: When use click lists must be search throught or serach list by his name
+        search_button.on_click(move |_| { // TODO: Today
+            
+        });
 
         // Style Events
         let both_hover = |btn: &mut Button| {
@@ -899,7 +901,7 @@ impl LoadElement {
     }
 
     // Menu: Create Frame container with others words
-    fn create_scrollframe_with_lists_menu(window: &mut Window, set: &config::Setting) {
+    fn create_scrollframe_with_lists_menu(window: &mut Window, set: &config::Setting) -> group::Pack {
         let mut container_with_words_list = group::Scroll::new((window.width() - 610) / 2 + 10, 260, 610, 610, "");
         container_with_words_list.set_frame(FrameType::BorderBox);
         container_with_words_list.set_color(set.fr_element_background_color);
@@ -916,9 +918,11 @@ impl LoadElement {
         pack.show();
         container_with_words_list.end();
         container_with_words_list.show();
+        
+        return pack;
     }
 
-    // Menu: Add All Words list to the Lists Container
+    // Menu: Add All Words list to the Lists Container (this function is invoking from "create_scrollframe_with_lists_menu()" function)
     fn add_lists_to_the_scrollframe_with_lists_menu(_window: &mut Window, set: &config::Setting, lists_container: &mut group::Pack) {
         let flags_names = crate::config::additional::Features::get_flags_data_from_words_files();
         let files_names = crate::config::additional::Features::get_files_names();
@@ -931,7 +935,12 @@ impl LoadElement {
                     if flag.name == "from" {
                         let protocol_from_flag = flag.value.0;
                         let domainname_from_flag = flag.value.1;
-                        let url_path_from_flag = flag.value.2;
+                        let url_path_from_flag = if flag.value.2 != String::from("null") {
+                            flag.value.2
+                        }
+                        else {
+                            String::new()
+                        };
                         let port_from_flag = if let Some(wal) = flag.value.3 {
                             String::from(wal)
                         }
@@ -1221,6 +1230,7 @@ impl LoadElement {
         }
     }
 
+    // Both: create window with progress bar
     fn create_progress_frame(wn: DoubleWindow) -> (Progress, Frame, Frame, DoubleWindow) {
         let window_size = (wn.width(), wn.height());
         // Style of the progress bar window
