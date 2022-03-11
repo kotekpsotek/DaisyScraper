@@ -8,6 +8,7 @@ use fs_extra::dir;
 #[allow(dead_code)]
 pub struct Features;
 impl Features {
+    // Get all flag list from files name
     pub fn get_flags_data_from_words_files() -> Result<Flags, String> { // this function must be safety for other components
         let path_string = format!("./files");
         let files_path = Path::new(&path_string);
@@ -93,7 +94,81 @@ impl Features {
         }
     }
 
-    // Get All Files Names from files in ./files folder
+    // Get Flags from specific file name
+    pub fn get_flag_from_specifici_filename(owe_file_name: String, flag_name: String) -> Result<SingleFlag, String> {
+        let dir_name = format!("./files");
+        let files_dir = Path::new(&dir_name);
+
+        if dir::get_size(files_dir).unwrap() > 0 {
+            // Return requested flag instance
+            let mut return_flag_struct_instance = SingleFlag { name: String::new(), value: String::new() };
+
+            // Iterate over all files in directory
+            for file_name in fs::read_dir(files_dir).unwrap() {
+                // File name from ./files directory
+                let file_name = file_name
+                    .unwrap()
+                    .file_name()
+                    .to_str()
+                    .unwrap()
+                    .to_string();
+                
+                // When file name is just as function parameter file name 
+                if file_name.contains(&owe_file_name) {
+                    // Get filename without file extension fragment ".extension" always on the file_name end
+                    let mut file_name_without_extension = file_name.split(".")
+                        .collect::<Vec<&str>>();
+                    file_name_without_extension.pop();
+                    let file_name_without_extension = file_name_without_extension.join(".");
+    
+                    // Get flags section from file_name_without_extension
+                    let flags_section_from_file_name = file_name_without_extension
+                        .split("flags_section")
+                        .collect::<Vec<&str>>();
+                    let flags_section_from_file_name = flags_section_from_file_name[1];
+    
+                    // Get list of all flags
+                    let list_of_all_flags_from_file = flags_section_from_file_name
+                        .split("&")
+                        .collect::<Vec<&str>>();
+    
+                    // Iterate over all flags from file for get requested flag in function calls
+                    for flag_namespace in list_of_all_flags_from_file {
+                        let flag_divide_into_sections = flag_namespace
+                            .trim()
+                            .split("=")
+                            .collect::<Vec<&str>>();
+                        let namespace_flag_name = flag_divide_into_sections[0].to_string();
+                        let namespace_flag_value = flag_divide_into_sections[1].to_string();
+    
+                        // When the flag name is the same as a requested file name in function invoke
+                        if flag_name == namespace_flag_name {
+                            // Set values for returning SingleFlag instance
+                            return_flag_struct_instance.name = namespace_flag_name;
+                            return_flag_struct_instance.value = namespace_flag_value;
+                            // Stop doing loop
+                            break;
+                        }
+                    }
+    
+                    break;
+                }
+            };
+    
+            // Return Value
+            if !return_flag_struct_instance.name.is_empty() && !return_flag_struct_instance.value.is_empty() {
+                Ok(return_flag_struct_instance)
+            }
+            else {
+                Err("flag_name_added_by_you_is_incorrect_or_this_flag_doesn't_exists".to_string())
+            }
+        }
+        else {
+            Err("downloaded_files_set_is_empty".to_string())
+        }
+    }
+
+    // Get all Files Names from files in ./files folder
     pub fn get_files_names() -> Vec<String> {
         let read_dir = fs::read_dir(Path::new("./files")).unwrap();
         let mut vec = Vec::<String>::new();
@@ -115,6 +190,7 @@ impl Features {
         return vec;
     }
 
+    // Get all words from specified file
     pub fn get_words_in_file(file_name: String) -> Option<Vec<String>> {
         let read_dir = fs::read_dir(Path::new("./files")).unwrap();
         let mut vec = Vec::<String>::new();
@@ -185,7 +261,7 @@ pub struct SingleFlag {
 
 #[allow(dead_code)]
 impl SingleFlag {
-    fn convert_value(&mut self) -> (String, String, String, Option<String>) { // for moment when this method was created the values can be only in tuple types
+    pub fn convert_value(&mut self) -> (String, String, String, Option<String>) { // for moment when this method was created the values can be only in tuple types
         // Remove Brackets
         let converting_base = &mut self.value;
         converting_base.remove(0); // remove the first bracket "(" from value String
