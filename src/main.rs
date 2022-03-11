@@ -45,4 +45,11 @@ mod Test {
         let port = specified_element.value.2.unwrap();
         println!("{}", port); */
     }
+
+    #[test]
+    fn file_from_dir() {
+        let mut action = additional::Features::get_flag_from_specifici_filename(format!("2022 Mar 11 01-58-25.648 +0100"), format!("from")).unwrap();
+        let action_value_converted = action.convert_value();
+        println!("Flag Value is: {:?}", action_value_converted)
+    }
 }
