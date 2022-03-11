@@ -177,9 +177,9 @@ impl ElementsCategories {
         // Create Title
         LoadElement::create_title_menu(&mut *window, &*set);
         // Create Frame and add elements to the frame
-        let mut search_frame = LoadElement::create_scrollframe_with_lists_menu(&mut *window, &*set);
+        let search_frame = LoadElement::create_scrollframe_with_lists_menu(&mut *window, &*set);
         // Create Search Bar
-        LoadElement::create_search_frame_menu(&mut *window, &*set, &mut search_frame);
+        LoadElement::create_search_frame_menu(&mut *window, &*set, search_frame);
     }
 }
 
@@ -768,7 +768,7 @@ impl LoadElement {
     }
 
     // Menu: Create Search Bar
-    fn create_search_frame_menu(window: &mut Window, set: &config::Setting, container_with_lists: &mut group::Pack) {
+    fn create_search_frame_menu(window: &mut Window, set: &config::Setting, mut container_with_lists: (group::Pack, group::Scroll)) {
         let window_w = window.width();
         let x_localization = (window_w / 2) - (610 / 2) + 10;
         let mut search_frame = Flex::new(x_localization , 120, 600, 55, "")
@@ -843,8 +843,104 @@ impl LoadElement {
         });
 
         // -- Button: Search
-        search_button.on_click(move |_| { // TODO: Today
-            
+        search_button.on_click({ // TODO: Today
+            let input = search_input.clone();
+            let screen_size = fltk::app::screen_size();
+            let set = Setting::app_default(); // TODO: This is only the temprary manner to solve problem in fast way but i must change this behaviour in the future
+            let mut window = window.clone();
+
+            move |_| {
+                // When input value isn't empty
+                if !input.value().is_empty() {
+                    // Value added to input element
+                    let input_value = input.value();
+                    let input_value = input_value.trim();
+                    // Files data
+                    let file_names = crate::config::additional::Features::get_files_names();
+                    
+                    // Check if program has got any downloaded words list
+                    if file_names.len() > 0 {
+                        let mut found_lists_count = 0;
+                        // Clear currently list and reload her styles
+                        container_with_lists.0.clear();
+                        container_with_lists.0.redraw();
+                        container_with_lists.1.redraw();
+
+                        // Iterate over all files with donloaded words lists for get all searching results
+                        for file_name in file_names {
+                            // Get From flag value
+                            let mut from_flag_from_file_name = crate::config::additional::Features::get_flag_from_specifici_filename(file_name.clone(), "from".to_string()).unwrap();
+                            let from_flag_value = from_flag_from_file_name.convert_value();
+                            let from_flag_protocol = from_flag_value.0;
+                            let from_flag_url_domain_name_val = from_flag_value.1;
+                            let from_flag_url_path_val = if !from_flag_value.2.is_empty() && from_flag_value.2 != "null" {
+                                from_flag_value.2
+                            } else {
+                                String::new()
+                            };
+                            let from_flag_port = if let Some(port) = from_flag_value.3 {
+                                port
+                            } else {
+                                String::new()
+                            };
+
+                            // Check if given value in input element has got element/elements which we can use to search specified list/lists with words sets
+                            if input_value.contains(&from_flag_url_domain_name_val) || input_value.contains(&from_flag_url_path_val) {
+                                // Increment found lists count by 1
+                                found_lists_count += 1;
+
+                                // Set localization from where list words has been downloaded in afforable form
+                                let download_from_url_name = if from_flag_port.len() > 0 {
+                                    format!("{protocol}://{domain_name}:{port}/{url_path}", protocol = from_flag_protocol, domain_name = from_flag_url_domain_name_val, port = from_flag_port, url_path = from_flag_url_path_val)
+                                }
+                                else {
+                                    format!("{protocol}://{domain_name}/{url_path}", protocol = from_flag_protocol, domain_name = from_flag_url_domain_name_val, url_path = from_flag_url_path_val)
+                                };
+
+                                // Create List element and add this element to the GUI
+                                Self::create_gui_list(&file_name, download_from_url_name, &set, &mut container_with_lists.0);
+                            }
+                        };
+
+                        // When any list coudn't be found
+                        if found_lists_count == 0 {
+                            // Clear actual list from lists elements and add all Lists elements to the Group again
+                            container_with_lists.0.redraw();
+                            container_with_lists.1.redraw();
+                            Self::add_lists_to_the_scrollframe_with_lists_menu(&mut window, &set, &mut container_with_lists.0);
+                            container_with_lists.0.redraw();
+                            container_with_lists.1.redraw();
+                            
+                            // Display failure alert with message
+                            dialog::alert(screen_size.0 as i32 / 2, 10, "Program hasn't got any downloaded words lists so all downloaded list is displayed!!!");
+                        }
+                    }
+                    else {
+                        // Clear actual list from lists elements and add all Lists elements to the Group again
+                        container_with_lists.0.clear();
+                        container_with_lists.0.redraw();
+                        container_with_lists.1.redraw();
+                        Self::add_lists_to_the_scrollframe_with_lists_menu(&mut window, &set, &mut container_with_lists.0);
+                        container_with_lists.0.redraw();
+                        container_with_lists.1.redraw();
+
+                        // Display failure alert with message
+                        dialog::alert(screen_size.0 as i32 / 2, 10, "Program hasn't got any downloaded words lists so all downloaded list is displayed!!!");
+                    };
+                }
+                else {
+                    // Clear actual list from lists elements and add all Lists elements to the Group again
+                    container_with_lists.0.clear();
+                    container_with_lists.0.redraw();
+                    container_with_lists.1.redraw();
+                    Self::add_lists_to_the_scrollframe_with_lists_menu(&mut window, &set, &mut container_with_lists.0);
+                    container_with_lists.0.redraw();
+                    container_with_lists.1.redraw();
+                    
+                    // Display failure alert with message
+                    dialog::alert(screen_size.0 as i32 / 2, 10, "The search bar is empty!!! Put value which will be searching in words list before click in \"Search Button\"");
+                };
+            }
         });
 
         // Style Events
@@ -901,7 +997,7 @@ impl LoadElement {
     }
 
     // Menu: Create Frame container with others words
-    fn create_scrollframe_with_lists_menu(window: &mut Window, set: &config::Setting) -> group::Pack {
+    fn create_scrollframe_with_lists_menu(window: &mut Window, set: &config::Setting) -> (group::Pack, group::Scroll) {
         let mut container_with_words_list = group::Scroll::new((window.width() - 610) / 2 + 10, 260, 610, 610, "");
         container_with_words_list.set_frame(FrameType::BorderBox);
         container_with_words_list.set_color(set.fr_element_background_color);
@@ -919,7 +1015,7 @@ impl LoadElement {
         container_with_words_list.end();
         container_with_words_list.show();
         
-        return pack;
+        return (pack, container_with_words_list);
     }
 
     // Menu: Add All Words list to the Lists Container (this function is invoking from "create_scrollframe_with_lists_menu()" function)
@@ -957,279 +1053,279 @@ impl LoadElement {
                         };
 
                         // Section: Create GUI List and add it to the parent
-                        create_gui_list(file_name, download_from_url_name, set, lists_container);
+                        Self::create_gui_list(file_name, download_from_url_name, set, lists_container);
                     }
                 }
             },
             Err(_) =>
                 ()
         }
-
-        // Creating Window which show us all lists with words downloaded from pages before
-        fn create_gui_list(file_name: &String, flag_from: String, set: &config::Setting, lists_container: &mut group::Pack) {
-            let words_from_file = crate::config::additional::Features::get_words_in_file(file_name.clone()); // all words from file
-
-            let mut single_list_master_con = Flex::new(0, 0, lists_container.width(), 50, "")
-                .row();
-
-            // Container with localization from where words have been downloaded
-            let frame_with_list_name_width = (single_list_master_con.width() as f64 / 1.3) as i32;
-
-            let mut frame_with_list_name = fltk::text::TextDisplay::new(0, 0, frame_with_list_name_width, single_list_master_con.height(), "");
-            let mut text_buf = fltk::text::TextBuffer::default();
-            text_buf.set_text(&flag_from);
-            frame_with_list_name.set_frame(FrameType::BorderBox);
-            frame_with_list_name.set_buffer(text_buf);
-            frame_with_list_name.set_text_font(Font::Courier);
-            frame_with_list_name.set_text_color(set.element_font_color);
-            frame_with_list_name.set_text_size(16);
-            frame_with_list_name.set_color(set.fr_elements_top_bar_background_color);
-            frame_with_list_name.wrap_mode(fltk::text::WrapMode::AtBounds, 10);
-
-            // Container: Buttons and Infos
-            let buttons_infos_container_width = lists_container.width() - frame_with_list_name_width;
-            let mut buttons_infos_container = Flex::new(0, 0, buttons_infos_container_width, lists_container.height(), "")
-                .row();
-            let child_elements_width = (buttons_infos_container.width() / 2) - 5;
-
-            // -- Info: Words which are in list count
-            let mut words_count_in_list = Frame::new(0, 0, child_elements_width, buttons_infos_container.height(), "")
-                .with_align(Align::Center | Align::Inside);
-            words_count_in_list.set_frame(FrameType::BorderBox);
-            words_count_in_list.set_color(set.fr_elements_top_bar_background_color);
-            words_count_in_list.set_label_color(set.element_font_color);
-            words_count_in_list.set_label_font(Font::Courier);
-            // -- > -- Add words count form the file to the GUI Element
-            match &words_from_file {
-                Some(val) => {
-                    words_count_in_list.set_label(&val.len().to_string())
-                },
-                None => words_count_in_list.set_label("0")
-            }
-
-            // -- Button: Open List
-            let button_open_list_image = SvgImage::load("svg/up-arrow-icon.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "up-arrow-icon" ("up-arrow-icon.svg")"#);
-            let mut button_open_list = Button::new(0, 0, child_elements_width, buttons_infos_container.height(), "")
-                .with_align(Align::Bottom | Align::Inside);
-            button_open_list.set_frame(FrameType::BorderBox);
-            button_open_list.set_color(set.fr_elements_top_bar_background_color);
-            button_open_list.set_label_color(set.element_font_color);
-            button_open_list.set_image(Some(button_open_list_image));
-            button_open_list.clear_visible_focus();
-
-            // Hidden Container with file name
-            let mut file_name_frame_container = Frame::new(0, 0, frame_with_list_name_width, single_list_master_con.height(), "")
-                .with_label(file_name);
-            file_name_frame_container.hide();
-
-            buttons_infos_container.set_size(&mut words_count_in_list, child_elements_width); // Set Width for the element with the info about words count in the list
-            buttons_infos_container.set_size(&mut button_open_list, child_elements_width); // Set Width for the button for the open lists with words
-            buttons_infos_container.end();
-
-            single_list_master_con.set_size(&mut frame_with_list_name, frame_with_list_name_width); // Set width for container with List Name
-            single_list_master_con.set_size(&mut buttons_infos_container, buttons_infos_container_width); // Set width for container with Additional infos and buttons
-            single_list_master_con.end();
-
-
-            // Listen events Section
-            let mut open_list_button: Listener<_> = button_open_list.clone().into();
-            let mut frame_with_list_name_listener: Listener<_> = frame_with_list_name.clone().into();
-
-            frame_with_list_name_listener.on_click({
-                let words_from_file_cc = words_from_file.clone().unwrap();
-                move |txt_elem| { // when user click on frame with list name
-                    create_words_from_list_window(txt_elem.buffer().unwrap().text(), &words_from_file_cc, config::Setting::app_default());
-                }
-            });
-
-            open_list_button.on_click({ // when user click on frame with button for open the list
-                let words_from_file_cc = words_from_file.clone().unwrap();
-                let list_name = frame_with_list_name.clone().buffer().unwrap().text();
-                move |_button| { // when user click on frame with list name
-                    create_words_from_list_window(list_name.clone(), &words_from_file_cc, config::Setting::app_default());
-                }
-            });
-
-            // Style Events
-            let both_hover = |btn: &mut Button| {
-                btn.set_color(btn.color().lighter());
-                draw::set_cursor(Cursor::Hand);
-            };
-            let both_leave = {
-                let def_color_button = set.fr_elements_top_bar_background_color;
-                move |btn: &mut Button| {
-                    btn.set_color(def_color_button);
-                    draw::set_cursor(Cursor::Default);
-                }
-            };
-            open_list_button.on_hover(both_hover);
-            open_list_button.on_leave(both_leave);
-            frame_with_list_name_listener.on_hover({
-                let mut list_button = button_open_list.clone();
-                let mut words_count_info = words_count_in_list.clone();
-                move |frame| {
-                    // Set Style for frame
-                    frame.set_color(frame.color().lighter());
-                    draw::set_cursor(Cursor::Hand);
-
-                    // Set Style for Words Count info
-                    words_count_info.set_color(words_count_info.color().lighter());
-                    words_count_info.redraw(); // load changed color
-
-                    // Set style for Open List Button
-                    list_button.set_color(list_button.color().lighter());
-                    list_button.redraw(); // load changed color
-                }
-            });
-            frame_with_list_name_listener.on_leave( {
-                let def_color_button = set.fr_elements_top_bar_background_color;
-                let mut list_button = button_open_list.clone();
-                let mut words_count_info = words_count_in_list.clone();
-                move |frame| {
-                    // Set Style for frame
-                    frame.set_color(def_color_button);
-                    draw::set_cursor(Cursor::Default);
-
-                    // Set Style for Words Count info
-                    words_count_info.set_color(def_color_button);
-                    words_count_info.redraw(); // load changed color
-
-                    // Set style for Open List Button
-                    list_button.set_color(def_color_button);
-                    list_button.redraw(); // Load changed color
-                }
-            });
-
-            // Add elements to the group container
-            lists_container.add(&single_list_master_con);
-        }
-
-        // Creating Window with words occurs for the specified lists (this window will be created when user click on any list with words created by create_gui_list() function which is at the top :])
-        fn create_words_from_list_window(name_words_list: String, list_words: &Vec<String>, set: Setting) {
-            let frame_size = 750; // Size for frame with words list in x and y axis
-
-            // Create Window
-            let screen_size = fltk::app::screen_size();
-            let window_name = format!("Daisy Scraper -> Words Lists -> {}", name_words_list);
-            let mut list_window = fltk::window::Window::new((screen_size.0 as i32 - 900) / 2, (screen_size.1 as i32 - 900) / 2, 900, 900, "");
-            list_window.set_label(&window_name);
-            list_window.set_color(set.app_backround_color);
-
-            // Create List Title
-            let mut list_title_container = Flex::new((list_window.width() - frame_size) / 2 + 10, 50, 300, 55, "")
-                .row();
-            list_title_container.set_frame(FrameType::BorderBox);
-            list_title_container.set_color(set.fr_elements_top_bar_background_color);
-
-            // -- Words List Icon Container
-            let specified_words_list_icon = SvgImage::load("svg/word-icon.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "word-icon" ("word-icon.svg")"#);
-            let mut words_icon = Frame::new(0, 0, 0, list_title_container.height(), "")
-                .with_align(Align::Bottom | Align::Inside);
-            words_icon.set_image(Some(specified_words_list_icon));
-
-            // -- Words List Title
-            let mut words_title = Frame::new((list_window.width() - frame_size) / 2 + 10, 50, 300, 55, "")
-                .with_label("Selected List")
-                .with_align(Align::Left | Align::Inside);
-            words_title.set_label_color(set.element_font_color);
-            words_title.set_label_font(Font::Courier);
-            words_title.set_label_size(20);
-
-            list_title_container.set_size(&mut words_icon, 50); // set width for the element with words list icon
-            list_title_container.set_size(&mut words_title, 250); // set width for the element with words list title
-            list_title_container.end();
-
-
-            // Create Frame With All Words
-            let mut container_with_words_list = group::Scroll::new((list_window.width() - frame_size) / 2 + 10, 120, frame_size, frame_size, "");
-            container_with_words_list.set_frame(FrameType::BorderBox);
-            container_with_words_list.set_color(set.fr_element_background_color);
-            container_with_words_list.set_type(group::ScrollType::VerticalAlways);
-            container_with_words_list.set_scrollbar_size(10); // scroll bar width
-
-            let mut pack = group::Pack::new(0, 0, container_with_words_list.width(), container_with_words_list.height(), "");
-            pack.clone().center_of_parent(); // the all elements is now in the center of the parent
-            pack.set_spacing(5); // the space between elements in single column
-
-            // Add Words to the words list
-            let mut count = 0;
-            for word in list_words {
-                count += 1;
-                let mut word_element = Flex::new(0, 0, container_with_words_list.width(), 50, "")
-                    .row();
-
-                // Create Button with element number in list
-                let mut element_number_container = Frame::new(0, 0, 50, word_element.height(), "")
-                    .with_align(Align::Center | Align::Inside)
-                    .with_label(count.to_string().as_str());
-                element_number_container.set_frame(FrameType::BorderBox);
-                element_number_container.set_color(set.fr_elements_top_bar_background_color);
-                element_number_container.set_label_color(set.element_font_color);
-                element_number_container.clear_visible_focus();
-
-                // Create Check Button
-                let mut check_button = CheckButton::new(0, 0, 100, word_element.height(), "")
-                    .with_label("learned")
-                    .with_align(Align::Center | Align::Inside);
-                check_button.set_frame(FrameType::BorderBox);
-                check_button.set_color(set.fr_elements_top_bar_background_color);
-                check_button.set_label_font(Font::Courier);
-                check_button.set_label_size(16);
-                check_button.set_label_color(set.element_font_color);
-                check_button.clear_visible_focus();
-
-                // Create Container with word text
-                let mut word_text_buf = TextBuffer::default();
-                word_text_buf.set_text(word);
-                let mut word_text = fltk::text::TextDisplay::new(0, 0, word_element.width() - 100, word_element.height(), "");
-                word_text.set_buffer(word_text_buf);
-                word_text.set_frame(FrameType::BorderBox);
-                word_text.set_color(set.fr_elements_top_bar_background_color);
-                word_text.set_text_color(set.element_font_color);
-                word_text.set_text_font(Font::Courier);
-
-
-                word_element.set_size(&mut element_number_container, 50); // set size for the number info element
-                word_element.set_size(&mut check_button, 100); // set size for the check button
-                word_element.set_size(&mut word_text, word_element.width() - (element_number_container.width() + check_button.width()));
-                word_element.end();
-
-                // Listen events section
-                let mut check_button_listener: Listener<_> = check_button.into();
-
-                // When user click on "learned" check button
-                check_button_listener.on_click({
-                    let default_color = set.fr_elements_top_bar_background_color;
-                    let mut number_element = element_number_container.clone();
-                    let mut word_text = word_text.clone();
-                    move |btn| {
-                        if btn.color().to_rgb() == default_color.to_rgb() {
-                            number_element.set_color(number_element.color().lighter()); // set number element color
-                            btn.set_color(btn.color().lighter()); // set button color
-                            word_text.set_color(word_text.color().lighter()); // set color word text element
-                            number_element.redraw(); // load changes
-                            word_text.redraw(); // load changes
-                        }
-                        else {
-                            number_element.set_color(default_color); // reset number element color
-                            btn.set_color(default_color);
-                            word_text.set_color(default_color); // reset color word text element
-                            number_element.redraw(); // reload changes
-                            word_text.redraw(); // reload changes
-                        }
-                    }
-                });
-
-                // Add Word Element to the container with elements
-                pack.add(&word_element);
-            }
-
-            // Load Changes to window and display window
-            list_window.end();
-            list_window.show();
-        }
     }
 
+    // Menu: Creating list with words and add this list to frame with donwloaded words list sets (by default only one list will be create)
+    fn create_gui_list(file_name: &String, flag_from: String, set: &config::Setting, lists_container: &mut group::Pack) {
+        let words_from_file = crate::config::additional::Features::get_words_in_file(file_name.clone()); // all words from file
+
+        let mut single_list_master_con = Flex::new(0, 0, lists_container.width(), 50, "")
+            .row();
+
+        // Container with localization from where words have been downloaded
+        let frame_with_list_name_width = (single_list_master_con.width() as f64 / 1.3) as i32;
+
+        let mut frame_with_list_name = fltk::text::TextDisplay::new(0, 0, frame_with_list_name_width, single_list_master_con.height(), "");
+        let mut text_buf = fltk::text::TextBuffer::default();
+        text_buf.set_text(&flag_from);
+        frame_with_list_name.set_frame(FrameType::BorderBox);
+        frame_with_list_name.set_buffer(text_buf);
+        frame_with_list_name.set_text_font(Font::Courier);
+        frame_with_list_name.set_text_color(set.element_font_color);
+        frame_with_list_name.set_text_size(16);
+        frame_with_list_name.set_color(set.fr_elements_top_bar_background_color);
+        frame_with_list_name.wrap_mode(fltk::text::WrapMode::AtBounds, 10);
+
+        // Container: Buttons and Infos
+        let buttons_infos_container_width = lists_container.width() - frame_with_list_name_width;
+        let mut buttons_infos_container = Flex::new(0, 0, buttons_infos_container_width, lists_container.height(), "")
+            .row();
+        let child_elements_width = (buttons_infos_container.width() / 2) - 5;
+
+        // -- Info: Words which are in list count
+        let mut words_count_in_list = Frame::new(0, 0, child_elements_width, buttons_infos_container.height(), "")
+            .with_align(Align::Center | Align::Inside);
+        words_count_in_list.set_frame(FrameType::BorderBox);
+        words_count_in_list.set_color(set.fr_elements_top_bar_background_color);
+        words_count_in_list.set_label_color(set.element_font_color);
+        words_count_in_list.set_label_font(Font::Courier);
+        // -- > -- Add words count form the file to the GUI Element
+        match &words_from_file {
+            Some(val) => {
+                words_count_in_list.set_label(&val.len().to_string())
+            },
+            None => words_count_in_list.set_label("0")
+        }
+
+        // -- Button: Open List
+        let button_open_list_image = SvgImage::load("svg/up-arrow-icon.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "up-arrow-icon" ("up-arrow-icon.svg")"#);
+        let mut button_open_list = Button::new(0, 0, child_elements_width, buttons_infos_container.height(), "")
+            .with_align(Align::Bottom | Align::Inside);
+        button_open_list.set_frame(FrameType::BorderBox);
+        button_open_list.set_color(set.fr_elements_top_bar_background_color);
+        button_open_list.set_label_color(set.element_font_color);
+        button_open_list.set_image(Some(button_open_list_image));
+        button_open_list.clear_visible_focus();
+
+        // Hidden Container with file name
+        let mut file_name_frame_container = Frame::new(0, 0, frame_with_list_name_width, single_list_master_con.height(), "")
+            .with_label(file_name);
+        file_name_frame_container.hide();
+
+        buttons_infos_container.set_size(&mut words_count_in_list, child_elements_width); // Set Width for the element with the info about words count in the list
+        buttons_infos_container.set_size(&mut button_open_list, child_elements_width); // Set Width for the button for the open lists with words
+        buttons_infos_container.end();
+
+        single_list_master_con.set_size(&mut frame_with_list_name, frame_with_list_name_width); // Set width for container with List Name
+        single_list_master_con.set_size(&mut buttons_infos_container, buttons_infos_container_width); // Set width for container with Additional infos and buttons
+        single_list_master_con.end();
+
+
+        // Listen events Section
+        let mut open_list_button: Listener<_> = button_open_list.clone().into();
+        let mut frame_with_list_name_listener: Listener<_> = frame_with_list_name.clone().into();
+
+        frame_with_list_name_listener.on_click({
+            let words_from_file_cc = words_from_file.clone().unwrap();
+            move |txt_elem| { // when user click on frame with list name
+                Self::create_words_from_list_window(txt_elem.buffer().unwrap().text(), &words_from_file_cc, config::Setting::app_default());
+            }
+        });
+
+        open_list_button.on_click({ // when user click on frame with button for open the list
+            let words_from_file_cc = words_from_file.clone().unwrap();
+            let list_name = frame_with_list_name.clone().buffer().unwrap().text();
+            move |_button| { // when user click on frame with list name
+                Self::create_words_from_list_window(list_name.clone(), &words_from_file_cc, config::Setting::app_default());
+            }
+        });
+
+        // Style Events
+        let both_hover = |btn: &mut Button| {
+            btn.set_color(btn.color().lighter());
+            draw::set_cursor(Cursor::Hand);
+        };
+        let both_leave = {
+            let def_color_button = set.fr_elements_top_bar_background_color;
+            move |btn: &mut Button| {
+                btn.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
+            }
+        };
+        open_list_button.on_hover(both_hover);
+        open_list_button.on_leave(both_leave);
+        frame_with_list_name_listener.on_hover({
+            let mut list_button = button_open_list.clone();
+            let mut words_count_info = words_count_in_list.clone();
+            move |frame| {
+                // Set Style for frame
+                frame.set_color(frame.color().lighter());
+                draw::set_cursor(Cursor::Hand);
+
+                // Set Style for Words Count info
+                words_count_info.set_color(words_count_info.color().lighter());
+                words_count_info.redraw(); // load changed color
+
+                // Set style for Open List Button
+                list_button.set_color(list_button.color().lighter());
+                list_button.redraw(); // load changed color
+            }
+        });
+        frame_with_list_name_listener.on_leave( {
+            let def_color_button = set.fr_elements_top_bar_background_color;
+            let mut list_button = button_open_list.clone();
+            let mut words_count_info = words_count_in_list.clone();
+            move |frame| {
+                // Set Style for frame
+                frame.set_color(def_color_button);
+                draw::set_cursor(Cursor::Default);
+
+                // Set Style for Words Count info
+                words_count_info.set_color(def_color_button);
+                words_count_info.redraw(); // load changed color
+
+                // Set style for Open List Button
+                list_button.set_color(def_color_button);
+                list_button.redraw(); // Load changed color
+            }
+        });
+
+        // Add elements to the group container
+        lists_container.add(&single_list_master_con);
+    }
+
+    // Creating Window with words occurs for the specified lists (this window will be created when user click on any list with words created by create_gui_list() function which is at the top :])
+    fn create_words_from_list_window(name_words_list: String, list_words: &Vec<String>, set: Setting) {
+        let frame_size = 750; // Size for frame with words list in x and y axis
+
+        // Create Window
+        let screen_size = fltk::app::screen_size();
+        let window_name = format!("Daisy Scraper -> Words Lists -> {}", name_words_list);
+        let mut list_window = fltk::window::Window::new((screen_size.0 as i32 - 900) / 2, (screen_size.1 as i32 - 900) / 2, 900, 900, "");
+        list_window.set_label(&window_name);
+        list_window.set_color(set.app_backround_color);
+
+        // Create List Title
+        let mut list_title_container = Flex::new((list_window.width() - frame_size) / 2 + 10, 50, 300, 55, "")
+            .row();
+        list_title_container.set_frame(FrameType::BorderBox);
+        list_title_container.set_color(set.fr_elements_top_bar_background_color);
+
+        // -- Words List Icon Container
+        let specified_words_list_icon = SvgImage::load("svg/word-icon.svg").expect(r#"Cound't load search icon from folder ./svg. Add svg file which is svg file and his name is "word-icon" ("word-icon.svg")"#);
+        let mut words_icon = Frame::new(0, 0, 0, list_title_container.height(), "")
+            .with_align(Align::Bottom | Align::Inside);
+        words_icon.set_image(Some(specified_words_list_icon));
+
+        // -- Words List Title
+        let mut words_title = Frame::new((list_window.width() - frame_size) / 2 + 10, 50, 300, 55, "")
+            .with_label("Selected List")
+            .with_align(Align::Left | Align::Inside);
+        words_title.set_label_color(set.element_font_color);
+        words_title.set_label_font(Font::Courier);
+        words_title.set_label_size(20);
+
+        list_title_container.set_size(&mut words_icon, 50); // set width for the element with words list icon
+        list_title_container.set_size(&mut words_title, 250); // set width for the element with words list title
+        list_title_container.end();
+
+
+        // Create Frame With All Words
+        let mut container_with_words_list = group::Scroll::new((list_window.width() - frame_size) / 2 + 10, 120, frame_size, frame_size, "");
+        container_with_words_list.set_frame(FrameType::BorderBox);
+        container_with_words_list.set_color(set.fr_element_background_color);
+        container_with_words_list.set_type(group::ScrollType::VerticalAlways);
+        container_with_words_list.set_scrollbar_size(10); // scroll bar width
+
+        let mut pack = group::Pack::new(0, 0, container_with_words_list.width(), container_with_words_list.height(), "");
+        pack.clone().center_of_parent(); // the all elements is now in the center of the parent
+        pack.set_spacing(5); // the space between elements in single column
+
+        // Add Words to the words list
+        let mut count = 0;
+        for word in list_words {
+            count += 1;
+            let mut word_element = Flex::new(0, 0, container_with_words_list.width(), 50, "")
+                .row();
+
+            // Create Button with element number in list
+            let mut element_number_container = Frame::new(0, 0, 50, word_element.height(), "")
+                .with_align(Align::Center | Align::Inside)
+                .with_label(count.to_string().as_str());
+            element_number_container.set_frame(FrameType::BorderBox);
+            element_number_container.set_color(set.fr_elements_top_bar_background_color);
+            element_number_container.set_label_color(set.element_font_color);
+            element_number_container.clear_visible_focus();
+
+            // Create Check Button
+            let mut check_button = CheckButton::new(0, 0, 100, word_element.height(), "")
+                .with_label("learned")
+                .with_align(Align::Center | Align::Inside);
+            check_button.set_frame(FrameType::BorderBox);
+            check_button.set_color(set.fr_elements_top_bar_background_color);
+            check_button.set_label_font(Font::Courier);
+            check_button.set_label_size(16);
+            check_button.set_label_color(set.element_font_color);
+            check_button.clear_visible_focus();
+
+            // Create Container with word text
+            let mut word_text_buf = TextBuffer::default();
+            word_text_buf.set_text(word);
+            let mut word_text = fltk::text::TextDisplay::new(0, 0, word_element.width() - 100, word_element.height(), "");
+            word_text.set_buffer(word_text_buf);
+            word_text.set_frame(FrameType::BorderBox);
+            word_text.set_color(set.fr_elements_top_bar_background_color);
+            word_text.set_text_color(set.element_font_color);
+            word_text.set_text_font(Font::Courier);
+
+
+            word_element.set_size(&mut element_number_container, 50); // set size for the number info element
+            word_element.set_size(&mut check_button, 100); // set size for the check button
+            word_element.set_size(&mut word_text, word_element.width() - (element_number_container.width() + check_button.width()));
+            word_element.end();
+
+            // Listen events section
+            let mut check_button_listener: Listener<_> = check_button.into();
+
+            // When user click on "learned" check button
+            check_button_listener.on_click({
+                let default_color = set.fr_elements_top_bar_background_color;
+                let mut number_element = element_number_container.clone();
+                let mut word_text = word_text.clone();
+                move |btn| {
+                    if btn.color().to_rgb() == default_color.to_rgb() {
+                        number_element.set_color(number_element.color().lighter()); // set number element color
+                        btn.set_color(btn.color().lighter()); // set button color
+                        word_text.set_color(word_text.color().lighter()); // set color word text element
+                        number_element.redraw(); // load changes
+                        word_text.redraw(); // load changes
+                    }
+                    else {
+                        number_element.set_color(default_color); // reset number element color
+                        btn.set_color(default_color);
+                        word_text.set_color(default_color); // reset color word text element
+                        number_element.redraw(); // reload changes
+                        word_text.redraw(); // reload changes
+                    }
+                }
+            });
+
+            // Add Word Element to the container with elements
+            pack.add(&word_element);
+        }
+
+        // Load Changes to window and display window
+        list_window.end();
+        list_window.show();
+    }
+    
     // Both: create window with progress bar
     fn create_progress_frame(wn: DoubleWindow) -> (Progress, Frame, Frame, DoubleWindow) {
         let window_size = (wn.width(), wn.height());
