@@ -387,8 +387,8 @@ impl LoadElement {
         // !!! Function which initialize download words from GUI
         fn show_window_and_scrap_words(links_list: &ContainerForLinks, search_input: &Input) {
             unsafe {
-                let mut links_list = links_list.clone();
-                let (screen_width, screen_height) = fltk::app::screen_size();
+                let links_list = links_list.clone();
+                // let (screen_width, screen_height) = fltk::app::screen_size();
                 let search_input = search_input.clone();
 
                 // Links from Input Container
@@ -415,59 +415,56 @@ impl LoadElement {
                 else {
                     Vec::<String>::new()
                 };
-                // Add Links from Container to list with other links
+
+                // Add Links from Container and Input Element to list with other links
                 base_he.append(&mut LINKS_TO_DOWNLOAD_LIST.clone());
 
                 // When URLs have been added
+                // GOOD: HERE
                 if base_he.len() > 0 {
-                    let mut wn = DoubleWindow::new(0, 0, 700, 250, "Scrap words progress");
-                    wn.set_pos((screen_width as i32 - 700) / 2, (screen_height as i32 - 250) / 2);
+                    // create scrap words progress window
+                    let mut data = LoadElement::create_progress_frame();
 
                     tokio::spawn({
-                        let data = LoadElement::create_progress_frame(wn.clone()); // create scrap words progress window
-                        // println!("{}", search_input.value()); !!! In this place search input works good
                         let search_input_val = search_input.value(); // In this way this works
+                        let data = data.clone();
+
                         async move { // start scrap words (this must be in tokio block because scrap words is async function)
-                            scrap_words(&mut links_list, search_input_val, data).await;
+                            let mut search_vec = Vec::<String>::new(); // Vector with values from Input and "Links List" Frame is sending to search function
+                
+                            // Add value from input to search_vec
+                            if search_input_val.trim().len() > 0 {
+                                let b_ = search_input_val.trim();
+                                let search_input_vec = b_.split(" ").collect::<Vec<&str>>();
+                                for url in search_input_vec {
+                                    if url.starts_with("https://") || url.starts_with("http://") {
+                                        search_vec.push(url.to_string());
+                                    };
+                                }
+                            };
+            
+                            // Add values from links list to vec with links list
+                            search_vec.append(&mut LINKS_TO_DOWNLOAD_LIST.clone());
+            
+                            // Clear all values from global static variable LINKS_TO_DOWNLOAD_LIST (it is like this because all actions over links should performed correctly or incorrectly when words from some reson cound't be downloaded like: added domain or url path doesn't exists)
+                            // LINKS_TO_DOWNLOAD_LIST.clear();
+            
+                            // Format all urls to correct form and collect these values in Vec<String> (in this place incorrect characters from url will be replacing)
+                            search_vec = search_vec
+                                .iter()
+                                .map(|val| {
+                                    let regexpresion = Regex::new(r"\\{2,}").unwrap().replace_all(val, "//").to_string();
+                                    regexpresion
+                                })
+                                .collect();
+                    
+                            // Scrap words and show scrap progress bar
+                            scrap_from(search_vec, Some(data), Some((links_list.clone(), fltk::input::Input::default()))).await;
                         }
                     });
-                    wn.end();
-                    wn.show();
+                    data.3.end();
+                    data.3.show();
                 };
-            }
-        }
-
-        // -- Button: Start Scrap words from url to scrap list or input when scrap words list is empty // TODO: This function should be deleted
-        async fn scrap_words(link_list: &mut ContainerForLinks, search_input: String, gui_params: (Progress, Frame, Frame, DoubleWindow)) { // starts scrap words from pages based on added links
-            unsafe {
-                let mut search_vec = Vec::<String>::new(); // Vector with values from Input and "Links List" Frame is sending to search function
-
-                // Add value from input to search_vec
-                if search_input.trim().len() > 0 {
-                    let b_ = search_input.trim();
-                    let search_input_vec = b_.split(" ").collect::<Vec<&str>>();
-                    for url in search_input_vec {
-                        if url.starts_with("https://") || url.starts_with("http://") {
-                            search_vec.push(url.to_string());
-                        };
-                    }
-                };
-
-                // Add values from links list to vec with links list
-                search_vec.append(&mut LINKS_TO_DOWNLOAD_LIST.clone());
-
-                // Format url to correct form (this is now focused on replacing \\ from url which is from "Links List" frame)
-                search_vec = search_vec
-                    .iter()
-                    .map(|val| {
-                        let regexpresion = Regex::new(r"\\{2,}").unwrap().replace_all(val, "//").to_string();
-                        println!("regexp: {}", regexpresion);
-                        regexpresion
-                    })
-                    .collect();
-        
-                // Scrap words and show scrap progress bar
-                // scrap_from(search_vec, Some(gui_params.clone()), Some((link_list.clone(), fltk::input::Input::default()))).await; // TODO: Add changes in gui_links params and uncomment this
             }
         }
 
@@ -1327,7 +1324,10 @@ impl LoadElement {
     }
     
     // Both: create window with progress bar
-    fn create_progress_frame(wn: DoubleWindow) -> (Progress, Frame, Frame, DoubleWindow) {
+    fn create_progress_frame() -> (Progress, Frame, Frame, DoubleWindow) {
+        let mut wn = DoubleWindow::new(0, 0, 700, 250, "Scrap words progress");
+        wn.set_pos((fltk::app::screen_size().0 as i32 - 700) / 2, (fltk::app::screen_size().1 as i32 - 250) / 2);
+        
         let window_size = (wn.width(), wn.height());
         // Style of the progress bar window
         let mut info_title = Frame::new((window_size.0 - 500) / 2, (window_size.1 - (35 + 45)) / 2, 500, 20, "");
@@ -1352,6 +1352,7 @@ impl LoadElement {
     }
 }
 
+// Function witch initialize other functions
 pub fn create(r#type: CreateElementCategoryType) {
     let app_ = fltk::app::App::default();
     let screen_size = fltk::app::screen_size();
