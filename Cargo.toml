@@ -19,3 +19,6 @@ fltk = { version = "^1.2", features = ["fltk-bundled"] }
 fltk-flex = "0.2.1"
 fltk-evented = "0.1.5"
 fltk-theme = "0.4.2"
+
+[profile.release]
+strip = "debuginfo"
