@@ -33,7 +33,7 @@ The all downloaded words are saved in **files** folder in **.json files** under 
 
 **Overview:**
 <br>
-<img src="./attachments/Image%20#1.png"/>
+<img src="./attachments/image1.png" width="500px" height="500px"/>
 
 ### **Sets with lists which contains downladed words:**
 **Description:** By use this panel you can: See all lists with words and location from where this words have been downloaded, See how many words are in the particular lists, Get all lists which words has been downloaded from particular URL address by put this URL in input element and then click on "Search" button placed next to, Go to specific words list by click on list to which you would like to go
@@ -41,7 +41,7 @@ The all downloaded words are saved in **files** folder in **.json files** under 
 
 **Overview:**
 <br>
-<img src="./attachments/Image%20#2.png"/>
+<img src="./attachments/image2.png" width="500px" height="500px"/>
 
 ### **Panel with words from specific list:**
 **Description:** By use this panel you can: See all words from list, Select sepcific word/s as a "learned"
@@ -49,7 +49,7 @@ The all downloaded words are saved in **files** folder in **.json files** under 
 
 **Overview:**
 <br>
-<img src="./attachments/Image%20#3.png"/>
+<img src="./attachments/image3.png" width="500px" height="500px"/>
 
 ## **Used Technologies To Finalize This Project:**
 1. **Rust** - Fast, Safe and Productive programming language,
